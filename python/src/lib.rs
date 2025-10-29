@@ -54,7 +54,6 @@ fn cherry_core(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
         evm_function_signature_to_arrow_schemas,
         m
     )?)?;
-    m.add_function(wrap_pyfunction!(evm_validate_block_data, m)?)?;
     m.add_function(wrap_pyfunction!(evm_signature_to_topic0, m)?)?;
     m.add_function(wrap_pyfunction!(base58_encode_bytes, m)?)?;
     m.add_function(wrap_pyfunction!(base58_decode_string, m)?)?;
@@ -543,27 +542,6 @@ fn evm_function_signature_to_arrow_schemas(
         .context("output schema to pyarrow")?;
 
     Ok((input_schema, output_schema))
-}
-
-#[pyfunction]
-fn evm_validate_block_data(
-    blocks: &Bound<'_, PyAny>,
-    transactions: &Bound<'_, PyAny>,
-    logs: &Bound<'_, PyAny>,
-    traces: &Bound<'_, PyAny>,
-) -> PyResult<()> {
-    let blocks = RecordBatch::from_pyarrow_bound(blocks).context("convert blocks from pyarrow")?;
-    let transactions = RecordBatch::from_pyarrow_bound(transactions)
-        .context("convert transactions from pyarrow")?;
-    let logs = RecordBatch::from_pyarrow_bound(logs).context("convert logs from pyarrow")?;
-    let traces = RecordBatch::from_pyarrow_bound(traces).context("convert traces from pyarrow")?;
-
-    Ok(baselib::evm_validate::validate_block_data(
-        &blocks,
-        &transactions,
-        &logs,
-        &traces,
-    )?)
 }
 
 #[pyfunction]

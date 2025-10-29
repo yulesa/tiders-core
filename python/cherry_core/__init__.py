@@ -131,15 +131,6 @@ def evm_transaction_signature_to_arrow_schemas(
     return cc.evm_transaction_signature_to_arrow_schemas(signature)
 
 
-def evm_validate_block_data(
-    blocks: pyarrow.RecordBatch,
-    transactions: pyarrow.RecordBatch,
-    logs: pyarrow.RecordBatch,
-    traces: pyarrow.RecordBatch,
-):
-    return cc.evm_validate_block_data(blocks, transactions, logs, traces)
-
-
 def evm_signature_to_topic0(signature: str) -> str:
     return cc.evm_signature_to_topic0(signature)
 
