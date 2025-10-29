@@ -141,4 +141,3 @@ def base58_encode_bytes(b: bytes) -> str:
 
 def base58_decode_string(s: str) -> bytes:
     return cc.base58_decode_string(s)
-
