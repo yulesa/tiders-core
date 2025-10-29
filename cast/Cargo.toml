@@ -17,4 +17,4 @@ bs58 = { workspace = true }
 alloy-primitives = { workspace = true }
 
 [dev-dependencies]
-parquet = "54"
+parquet = { workspace = true }

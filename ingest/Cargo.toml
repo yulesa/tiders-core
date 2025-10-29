@@ -34,7 +34,7 @@ cherry-query = { path = "../query", version = "0.3.0" }
 cherry-svm-schema = { path = "../svm-schema", version = "0.2.0" }
 
 [dev-dependencies]
-parquet = "54"
+parquet = { workspace = true }
 bs58 = { workspace = true }
 
 [features]

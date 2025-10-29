@@ -18,4 +18,4 @@ anyhow = { workspace = true }
 log = { workspace =  true }
 
 [dev-dependencies]
-parquet = "54"
+parquet = { workspace = true }
