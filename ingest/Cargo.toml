@@ -32,6 +32,7 @@ cherry-evm-schema = { path = "../evm-schema", version = "0.2.0" }
 cherry-cast = { path = "../cast", version = "0.3.0" }
 cherry-query = { path = "../query", version = "0.3.0" }
 cherry-svm-schema = { path = "../svm-schema", version = "0.2.0" }
+cherry-rpc-client = { path = "../../cherry-rpc-client/rust", version = "0.1.0" }
 
 [dev-dependencies]
 parquet = { workspace = true }

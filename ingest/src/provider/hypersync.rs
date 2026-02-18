@@ -108,6 +108,10 @@ pub fn query_to_hypersync(query: &evm::Query) -> Result<hypersync_nt::Query> {
 }
 
 pub async fn start_stream(cfg: ProviderConfig, query: crate::Query) -> Result<DataStream> {
+    if cfg.rpc.is_some() {
+        return Err(anyhow!("rpc config is not supported by hypersync provider"));
+    }
+
     match query {
         Query::Svm(_) => Err(anyhow!("svm is not supported by hypersync")),
         Query::Evm(query) => {

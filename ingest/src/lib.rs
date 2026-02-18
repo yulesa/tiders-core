@@ -52,6 +52,7 @@ pub struct ProviderConfig {
     pub stop_on_head: bool,
     pub head_poll_interval_millis: Option<u64>,
     pub buffer_size: Option<usize>,
+    pub rpc: Option<RpcProviderConfig>,
 }
 
 impl ProviderConfig {
@@ -68,6 +69,40 @@ impl ProviderConfig {
             stop_on_head: false,
             head_poll_interval_millis: None,
             buffer_size: None,
+            rpc: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+#[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
+pub struct RpcProviderConfig {
+    pub compute_units_per_second: Option<u64>,
+    pub max_concurrent_requests: Option<usize>,
+    pub batch_size: Option<usize>,
+    pub rpc_batch_size: Option<usize>,
+    pub max_block_range: Option<u64>,
+    pub trace_method: Option<RpcTraceMethod>,
+    pub reorg_safe_distance: Option<u64>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum RpcTraceMethod {
+    TraceBlock,
+    DebugTraceBlockByNumber,
+}
+
+#[cfg(feature = "pyo3")]
+impl<'py> pyo3::FromPyObject<'py> for RpcTraceMethod {
+    fn extract_bound(ob: &pyo3::Bound<'py, pyo3::PyAny>) -> pyo3::PyResult<Self> {
+        use pyo3::types::PyAnyMethods;
+
+        let out: &str = ob.extract().context("read as string")?;
+
+        match out {
+            "trace_block" => Ok(Self::TraceBlock),
+            "debug_trace_block_by_number" => Ok(Self::DebugTraceBlockByNumber),
+            _ => Err(anyhow!("unknown trace method: {}", out).into()),
         }
     }
 }
@@ -76,6 +111,7 @@ impl ProviderConfig {
 pub enum ProviderKind {
     Sqd,
     Hypersync,
+    Rpc,
 }
 
 #[cfg(feature = "pyo3")]
@@ -88,6 +124,7 @@ impl<'py> pyo3::FromPyObject<'py> for ProviderKind {
         match out {
             "sqd" => Ok(Self::Sqd),
             "hypersync" => Ok(Self::Hypersync),
+            "rpc" => Ok(Self::Rpc),
             _ => Err(anyhow!("unknown provider kind: {}", out).into()),
         }
     }
@@ -143,6 +180,8 @@ pub async fn start_stream(provider_config: ProviderConfig, mut query: Query) -> 
         ProviderKind::Hypersync => provider::hypersync::start_stream(provider_config, query)
             .await
             .context("start hypersync stream")?,
+        ProviderKind::Rpc => provider::rpc::start_stream(provider_config, query)
+            .context("start rpc stream")?,
     };
 
     let stream = stream.then(move |res| {
@@ -219,6 +258,34 @@ mod tests {
             let mut writer = ArrowWriter::try_new(&mut file, v.schema(), None).unwrap();
             writer.write(&v).unwrap();
             writer.close().unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn simple_rpc_start_stream() {
+        let mut provider_config = ProviderConfig::new(ProviderKind::Rpc);
+        provider_config.url = Some("http://localhost:8545".to_string());
+
+        let query = crate::Query::Evm(evm::Query {
+            from_block: 0,
+            to_block: Some(0),
+            include_all_blocks: true,
+            logs: vec![],
+            transactions: vec![],
+            traces: vec![],
+            fields: evm::Fields::all(),
+        });
+
+        let mut stream = start_stream(provider_config, query).await.unwrap();
+        let data = stream.next().await.unwrap().unwrap();
+
+        // The RPC provider returns empty batches (Part 1 scaffolding).
+        // `run_query` post-filters, so only tables referenced in the
+        // generic query survive. `include_all_blocks` guarantees "blocks".
+        assert!(data.contains_key("blocks"));
+
+        for (_name, batch) in &data {
+            assert_eq!(batch.num_rows(), 0);
         }
     }
 }

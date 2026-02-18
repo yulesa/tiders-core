@@ -541,6 +541,10 @@ fn evm_query_to_sqd(query: &evm::Query) -> Result<sqd_portal_client::evm::Query>
 }
 
 pub fn start_stream(cfg: ProviderConfig, query: crate::Query) -> Result<DataStream> {
+    if cfg.rpc.is_some() {
+        return Err(anyhow!("rpc config is not supported by sqd provider"));
+    }
+
     let url = cfg
         .url
         .context("url is required when using sqd")?
