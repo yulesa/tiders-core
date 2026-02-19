@@ -1,4 +1,5 @@
 from typing import Dict, Optional
+import dataclasses
 from dataclasses import dataclass
 import pyarrow
 from enum import Enum
@@ -10,6 +11,7 @@ class ProviderKind(str, Enum):
     SQD = "sqd"
     HYPERSYNC = "hypersync"
     YELLOWSTONE_GRPC = "yellowstone_grpc"
+    RPC = "rpc"
 
 
 class QueryKind(str, Enum):
@@ -27,29 +29,23 @@ class Query:
 class ProviderConfig:
     kind: ProviderKind  # (Required) The selected provider.
     url: Optional[str] = None  # (Optional) The URL of the provider.
-    bearer_token: Optional[str] = (
-        None  # (Optional) Optional authentication token for protected APIs.
-    )
-    max_num_retries: Optional[int] = (
-        None  # (Optional) Maximum number of retries for failed requests.
-    )
-    retry_backoff_ms: Optional[int] = (
-        None  # (Optional) Delay increases between retries in milliseconds.
-    )
+    bearer_token: Optional[str] = None  # (Optional) Optional authentication token for protected APIs.
+    max_num_retries: Optional[int] = None  # (Optional) Maximum number of retries for failed requests.
+    retry_backoff_ms: Optional[int] = None  # (Optional) Delay increases between retries in milliseconds.
     retry_base_ms: Optional[int] = None  # (Optional) Base retry delay in milliseconds.
-    retry_ceiling_ms: Optional[int] = (
-        None  # (Optional) Maximum retry delay in milliseconds.
-    )
-    req_timeout_millis: Optional[int] = (
-        None  # (Optional) Request timeout in milliseconds.
-    )
+    retry_ceiling_ms: Optional[int] = None  # (Optional) Maximum retry delay in milliseconds.
+    req_timeout_millis: Optional[int] = None  # (Optional) Request timeout in milliseconds.
     stop_on_head: bool = False  # (Optional) Whether to automatically stop when reaching the blockchain head or keep the pipeline running indefinitely.
-    head_poll_interval_millis: Optional[int] = (
-        None  # (Optional) How frequently (in milliseconds) to poll the blockchain head for updates.
-    )
-    buffer_size: Optional[int] = (
-        None  # (Optional) Determines how many responses store in a buffer before sending them to the consumer.
-    )
+    head_poll_interval_millis: Optional[int] = None  # (Optional) How frequently (in milliseconds) to poll the blockchain head for updates.
+    buffer_size: Optional[int] = None  # (Optional) Determines how many responses store in a buffer before sending them to the consumer.
+    # RPC-specific fields
+    compute_units_per_second: Optional[int] = None  # (Optional) Rate limit in compute units per second.
+    max_concurrent_requests: Optional[int] = None  # (Optional) Maximum number of concurrent RPC requests.
+    batch_size: Optional[int] = None  # (Optional) Number of blocks fetched per batch.
+    rpc_batch_size: Optional[int] = None  # (Optional) Maximum JSON-RPC batch size.
+    max_block_range: Optional[int] = None  # (Optional) Maximum block range per request.
+    reorg_safe_distance: Optional[int] = None  # (Optional) Number of blocks behind head considered reorg-safe.
+    trace_method: Optional[str] = None  # (Optional) Trace method: "trace_block" or "debug_trace_block_by_number".
 
 
 class ResponseStream:
@@ -64,5 +60,11 @@ class ResponseStream:
 
 
 def start_stream(cfg: ProviderConfig, query: Query) -> ResponseStream:
+    # PyO3 extracts enum fields via Python's str(), which in Python 3.13+ returns
+    # "ProviderKind.RPC" instead of "rpc" for StrEnum members. Normalize to .value.
+    if isinstance(cfg.kind, Enum):
+        cfg = dataclasses.replace(cfg, kind=cfg.kind.value)
+    if isinstance(query.kind, Enum):
+        query = dataclasses.replace(query, kind=query.kind.value)
     inner = cc.ingest.start_stream(cfg, query)
     return ResponseStream(inner)

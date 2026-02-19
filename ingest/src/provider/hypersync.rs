@@ -1,6 +1,7 @@
 use super::common::field_selection_to_set;
 use crate::{evm, DataStream, ProviderConfig, Query};
 use anyhow::{anyhow, Context, Result};
+use log::warn;
 use arrow::array::ListBuilder;
 use arrow::array::{builder, new_null_array, Array, BinaryArray, BinaryBuilder, RecordBatch};
 use arrow::datatypes::DataType;
@@ -108,8 +109,15 @@ pub fn query_to_hypersync(query: &evm::Query) -> Result<hypersync_nt::Query> {
 }
 
 pub async fn start_stream(cfg: ProviderConfig, query: crate::Query) -> Result<DataStream> {
-    if cfg.rpc.is_some() {
-        return Err(anyhow!("rpc config is not supported by hypersync provider"));
+    if cfg.compute_units_per_second.is_some()
+        || cfg.max_concurrent_requests.is_some()
+        || cfg.batch_size.is_some()
+        || cfg.rpc_batch_size.is_some()
+        || cfg.max_block_range.is_some()
+        || cfg.reorg_safe_distance.is_some()
+        || cfg.trace_method.is_some()
+    {
+        warn!("RPC-specific fields set on ProviderConfig are ignored by the Hypersync provider");
     }
 
     match query {

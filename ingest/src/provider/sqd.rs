@@ -1,5 +1,6 @@
 use crate::{evm, svm, DataStream, ProviderConfig, Query};
 use anyhow::{anyhow, Context, Result};
+use log::warn;
 use futures_lite::StreamExt;
 use std::collections::BTreeMap;
 
@@ -541,8 +542,15 @@ fn evm_query_to_sqd(query: &evm::Query) -> Result<sqd_portal_client::evm::Query>
 }
 
 pub fn start_stream(cfg: ProviderConfig, query: crate::Query) -> Result<DataStream> {
-    if cfg.rpc.is_some() {
-        return Err(anyhow!("rpc config is not supported by sqd provider"));
+    if cfg.compute_units_per_second.is_some()
+        || cfg.max_concurrent_requests.is_some()
+        || cfg.batch_size.is_some()
+        || cfg.rpc_batch_size.is_some()
+        || cfg.max_block_range.is_some()
+        || cfg.reorg_safe_distance.is_some()
+        || cfg.trace_method.is_some()
+    {
+        warn!("RPC-specific fields set on ProviderConfig are ignored by the SQD provider");
     }
 
     let url = cfg

@@ -1,6 +1,6 @@
 use crate::{evm, DataStream, ProviderConfig, Query, RpcTraceMethod};
 use anyhow::{anyhow, Context, Result};
-use cherry_rpc_client::{Client, ClientConfig, StreamConfig};
+use cherry_rpc_client::{Client, ClientConfig};
 use futures_lite::StreamExt;
 
 pub fn start_stream(provider_config: ProviderConfig, query: Query) -> Result<DataStream> {
@@ -10,12 +10,11 @@ pub fn start_stream(provider_config: ProviderConfig, query: Query) -> Result<Dat
     };
 
     let rpc_query = map_query(&evm_query);
-    let client_config = map_provider_config(&provider_config)?;
-    let stream_config = map_stream_config(&provider_config);
+    let client_config = map_client_config(&provider_config)?;
 
-    let client = Client::new(client_config);
+    let client = Client::new(client_config)?;
     let stream = client
-        .stream(rpc_query, stream_config)
+        .stream(rpc_query)
         .context("create rpc stream")?;
 
     let stream = stream.map(|res| {
@@ -26,7 +25,7 @@ pub fn start_stream(provider_config: ProviderConfig, query: Query) -> Result<Dat
     Ok(Box::pin(stream))
 }
 
-fn map_provider_config(cfg: &ProviderConfig) -> Result<ClientConfig> {
+fn map_client_config(cfg: &ProviderConfig) -> Result<ClientConfig> {
     let url = cfg
         .url
         .clone()
@@ -35,7 +34,7 @@ fn map_provider_config(cfg: &ProviderConfig) -> Result<ClientConfig> {
     let mut client_config = ClientConfig::new(url);
 
     if let Some(v) = cfg.max_num_retries {
-        client_config.max_num_retries = v;
+        client_config.max_num_retries = v as u32;
     }
     if let Some(v) = cfg.retry_backoff_ms {
         client_config.retry_backoff_ms = v;
@@ -50,50 +49,44 @@ fn map_provider_config(cfg: &ProviderConfig) -> Result<ClientConfig> {
         client_config.req_timeout_millis = v;
     }
 
-    if let Some(rpc) = &cfg.rpc {
-        if let Some(v) = rpc.compute_units_per_second {
-            client_config.compute_units_per_second = Some(v);
-        }
-        if let Some(v) = rpc.max_concurrent_requests {
-            client_config.max_concurrent_requests = Some(v);
-        }
-        if let Some(v) = rpc.batch_size {
-            client_config.batch_size = Some(v);
-        }
-        if let Some(v) = rpc.rpc_batch_size {
-            client_config.rpc_batch_size = Some(v);
-        }
-        if let Some(v) = rpc.max_block_range {
-            client_config.max_block_range = Some(v);
-        }
-        if let Some(v) = rpc.trace_method {
-            client_config.trace_method = Some(match v {
-                RpcTraceMethod::TraceBlock => cherry_rpc_client::TraceMethod::TraceBlock,
-                RpcTraceMethod::DebugTraceBlockByNumber => {
-                    cherry_rpc_client::TraceMethod::DebugTraceBlockByNumber
-                }
-            });
-        }
+    client_config.stop_on_head = cfg.stop_on_head;
+    
+    if let Some(v) = cfg.head_poll_interval_millis {
+        client_config.head_poll_interval_millis = v;
+    }
+    if let Some(v) = cfg.buffer_size {
+        client_config.buffer_size = v;
+    }
+
+    if let Some(v) = cfg.compute_units_per_second {
+        client_config.compute_units_per_second = Some(v);
+    }
+    if let Some(v) = cfg.max_concurrent_requests {
+        client_config.max_concurrent_requests = Some(v);
+    }
+    if let Some(v) = cfg.batch_size {
+        client_config.batch_size = Some(v);
+    }
+    if let Some(v) = cfg.rpc_batch_size {
+        client_config.rpc_batch_size = Some(v);
+    }
+    if let Some(v) = cfg.max_block_range {
+        client_config.max_block_range = Some(v);
+    }
+    if let Some(v) = cfg.reorg_safe_distance {
+        client_config.reorg_safe_distance = v;
+    }
+
+    if let Some(v) = cfg.trace_method {
+        client_config.trace_method = Some(match v {
+            RpcTraceMethod::TraceBlock => cherry_rpc_client::TraceMethod::TraceBlock,
+            RpcTraceMethod::DebugTraceBlockByNumber => {
+                cherry_rpc_client::TraceMethod::DebugTraceBlockByNumber
+            }
+        });
     }
 
     Ok(client_config)
-}
-
-fn map_stream_config(cfg: &ProviderConfig) -> StreamConfig {
-    let mut sc = StreamConfig::default();
-    sc.stop_on_head = cfg.stop_on_head;
-    if let Some(v) = cfg.head_poll_interval_millis {
-        sc.head_poll_interval_millis = v;
-    }
-    if let Some(v) = cfg.buffer_size {
-        sc.buffer_size = v;
-    }
-    if let Some(rpc) = &cfg.rpc {
-        if let Some(v) = rpc.reorg_safe_distance {
-            sc.reorg_safe_distance = v;
-        }
-    }
-    sc
 }
 
 fn map_query(q: &evm::Query) -> cherry_rpc_client::Query {
@@ -313,14 +306,14 @@ mod tests {
             .err().unwrap();
         assert!(svm_err.to_string().contains("SVM"));
 
-        // provider config fields are passed through
+        // connection config fields are passed through
         let mut cfg = rpc_config("http://node:8545");
         cfg.max_num_retries = Some(3);
         cfg.retry_backoff_ms = Some(500);
         cfg.retry_base_ms = Some(100);
         cfg.retry_ceiling_ms = Some(5000);
         cfg.req_timeout_millis = Some(10_000);
-        let client_cfg = map_provider_config(&cfg).unwrap();
+        let client_cfg = map_client_config(&cfg).unwrap();
         assert_eq!(client_cfg.url, "http://node:8545");
         assert_eq!(client_cfg.max_num_retries, 3);
         assert_eq!(client_cfg.retry_backoff_ms, 500);
@@ -328,15 +321,15 @@ mod tests {
         assert_eq!(client_cfg.retry_ceiling_ms, 5000);
         assert_eq!(client_cfg.req_timeout_millis, 10_000);
 
-        // stream config fields are passed through
+        // stream behaviour fields are passed through
         let mut cfg = rpc_config("http://node:8545");
         cfg.stop_on_head = true;
         cfg.head_poll_interval_millis = Some(2000);
         cfg.buffer_size = Some(32);
-        let sc = map_stream_config(&cfg);
-        assert!(sc.stop_on_head);
-        assert_eq!(sc.head_poll_interval_millis, 2000);
-        assert_eq!(sc.buffer_size, 32);
+        let client_cfg = map_client_config(&cfg).unwrap();
+        assert!(client_cfg.stop_on_head);
+        assert_eq!(client_cfg.head_poll_interval_millis, 2000);
+        assert_eq!(client_cfg.buffer_size, 32);
     }
 
     #[test]

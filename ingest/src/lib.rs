@@ -52,7 +52,14 @@ pub struct ProviderConfig {
     pub stop_on_head: bool,
     pub head_poll_interval_millis: Option<u64>,
     pub buffer_size: Option<usize>,
-    pub rpc: Option<RpcProviderConfig>,
+    // RPC-specific fields
+    pub compute_units_per_second: Option<u64>,
+    pub max_concurrent_requests: Option<usize>,
+    pub batch_size: Option<usize>,
+    pub rpc_batch_size: Option<usize>,
+    pub max_block_range: Option<u64>,
+    pub reorg_safe_distance: Option<u64>,
+    pub trace_method: Option<RpcTraceMethod>,
 }
 
 impl ProviderConfig {
@@ -69,21 +76,15 @@ impl ProviderConfig {
             stop_on_head: false,
             head_poll_interval_millis: None,
             buffer_size: None,
-            rpc: None,
+            compute_units_per_second: None,
+            max_concurrent_requests: None,
+            batch_size: None,
+            rpc_batch_size: None,
+            max_block_range: None,
+            reorg_safe_distance: None,
+            trace_method: None,
         }
     }
-}
-
-#[derive(Debug, Clone, Default)]
-#[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
-pub struct RpcProviderConfig {
-    pub compute_units_per_second: Option<u64>,
-    pub max_concurrent_requests: Option<usize>,
-    pub batch_size: Option<usize>,
-    pub rpc_batch_size: Option<usize>,
-    pub max_block_range: Option<u64>,
-    pub trace_method: Option<RpcTraceMethod>,
-    pub reorg_safe_distance: Option<u64>,
 }
 
 #[derive(Debug, Clone, Copy)]
