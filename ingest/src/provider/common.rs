@@ -1,4 +1,5 @@
 use crate::{evm, svm};
+use anyhow::{anyhow, Result};
 use arrow::array::{Array, BinaryArray, StringArray, UInt8Array};
 use cherry_query::{Filter, Include, Query as GenericQuery, TableSelection};
 use serde::Serialize;
@@ -7,7 +8,39 @@ use std::{
     sync::Arc,
 };
 
-pub fn evm_query_to_generic(query: &evm::Query) -> GenericQuery {
+pub fn evm_query_to_generic(query: &evm::Query) -> Result<GenericQuery> {
+    let transaction_fields = field_selection_to_set(&query.fields.transaction);
+    let log_fields = field_selection_to_set(&query.fields.log);
+    let trace_fields = field_selection_to_set(&query.fields.trace);
+    let block_fields = field_selection_to_set(&query.fields.block);
+
+    if !transaction_fields.is_empty() && query.transactions.is_empty() {
+        return Err(anyhow!(
+            "TransactionFields were specified but no TransactionRequest was provided in the query"
+        ));
+    }
+    if !log_fields.is_empty() && query.logs.is_empty() {
+        return Err(anyhow!(
+            "LogFields were specified but no LogRequest was provided in the query"
+        ));
+    }
+    if !trace_fields.is_empty() && query.traces.is_empty() {
+        return Err(anyhow!(
+            "TraceFields were specified but no TraceRequest was provided in the query"
+        ));
+    }
+    let any_request_includes_blocks = query.transactions.iter().any(|r| r.include_blocks)
+        || query.logs.iter().any(|r| r.include_blocks)
+        || query.traces.iter().any(|r| r.include_blocks);
+    if !block_fields.is_empty()
+        && !query.include_all_blocks
+        && !any_request_includes_blocks
+    {
+        return Err(anyhow!(
+            "BlockFields were specified but blocks will never be fetched: \
+             set include_all_blocks=True or set include_blocks=True on a request"
+        ));
+    }
     let mut selection = BTreeMap::new();
 
     selection.insert(
@@ -45,37 +78,20 @@ pub fn evm_query_to_generic(query: &evm::Query) -> GenericQuery {
         );
     }
 
-    GenericQuery {
+    Ok(GenericQuery {
         fields: [
-            (
-                "blocks".to_owned(),
-                field_selection_to_set(&query.fields.block)
-                    .into_iter()
-                    .collect::<Vec<String>>(),
-            ),
+            ("blocks".to_owned(), block_fields.into_iter().collect()),
             (
                 "transactions".to_owned(),
-                field_selection_to_set(&query.fields.transaction)
-                    .into_iter()
-                    .collect::<Vec<String>>(),
+                transaction_fields.into_iter().collect(),
             ),
-            (
-                "traces".to_owned(),
-                field_selection_to_set(&query.fields.trace)
-                    .into_iter()
-                    .collect::<Vec<String>>(),
-            ),
-            (
-                "logs".to_owned(),
-                field_selection_to_set(&query.fields.log)
-                    .into_iter()
-                    .collect::<Vec<String>>(),
-            ),
+            ("traces".to_owned(), trace_fields.into_iter().collect()),
+            ("logs".to_owned(), log_fields.into_iter().collect()),
         ]
         .into_iter()
         .collect(),
         selection: Arc::new(selection),
-    }
+    })
 }
 
 fn evm_tx_selection_to_generic(selection: &evm::TransactionRequest) -> TableSelection {

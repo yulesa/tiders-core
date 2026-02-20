@@ -158,7 +158,8 @@ fn make_req_fields<T: DeserializeOwned>(query: &cherry_query::Query) -> Result<T
 pub async fn start_stream(provider_config: ProviderConfig, mut query: Query) -> Result<DataStream> {
     let generic_query = match &mut query {
         Query::Evm(evm_query) => {
-            let generic_query = evm_query_to_generic(evm_query);
+            let generic_query =
+                evm_query_to_generic(evm_query).context("validate evm query")?;
 
             evm_query.fields = make_req_fields(&generic_query).context("make req fields")?;
 
