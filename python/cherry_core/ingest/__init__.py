@@ -43,7 +43,6 @@ class ProviderConfig:
     max_concurrent_requests: Optional[int] = None  # (Optional) Maximum number of concurrent RPC requests.
     batch_size: Optional[int] = None  # (Optional) Number of blocks fetched per batch.
     rpc_batch_size: Optional[int] = None  # (Optional) Maximum JSON-RPC batch size.
-    max_block_range: Optional[int] = None  # (Optional) Maximum block range per request.
     reorg_safe_distance: Optional[int] = None  # (Optional) Number of blocks behind head considered reorg-safe.
     trace_method: Optional[str] = None  # (Optional) Trace method: "trace_block" or "debug_trace_block_by_number".
 

@@ -70,9 +70,6 @@ fn map_client_config(cfg: &ProviderConfig) -> Result<ClientConfig> {
     if let Some(v) = cfg.rpc_batch_size {
         client_config.rpc_batch_size = Some(v);
     }
-    if let Some(v) = cfg.max_block_range {
-        client_config.max_block_range = Some(v);
-    }
     if let Some(v) = cfg.reorg_safe_distance {
         client_config.reorg_safe_distance = v;
     }

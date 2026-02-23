@@ -546,7 +546,6 @@ pub fn start_stream(cfg: ProviderConfig, query: crate::Query) -> Result<DataStre
         || cfg.max_concurrent_requests.is_some()
         || cfg.batch_size.is_some()
         || cfg.rpc_batch_size.is_some()
-        || cfg.max_block_range.is_some()
         || cfg.reorg_safe_distance.is_some()
         || cfg.trace_method.is_some()
     {
