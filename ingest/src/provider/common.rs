@@ -14,19 +14,29 @@ pub fn evm_query_to_generic(query: &evm::Query) -> Result<GenericQuery> {
     let trace_fields = field_selection_to_set(&query.fields.trace);
     let block_fields = field_selection_to_set(&query.fields.block);
 
-    if !transaction_fields.is_empty() && query.transactions.is_empty() {
+    let any_includes_transactions = query.logs.iter().any(|r| r.include_transactions)
+        || query.traces.iter().any(|r| r.include_transactions);
+    if !transaction_fields.is_empty() && query.transactions.is_empty() && !any_includes_transactions {
         return Err(anyhow!(
-            "TransactionFields were specified but no TransactionRequest was provided in the query"
+            "TransactionFields were specified but transactions will never be fetched: \
+             add a TransactionRequest or set include_transactions=True on a request"
         ));
     }
-    if !log_fields.is_empty() && query.logs.is_empty() {
+    let any_includes_logs = query.transactions.iter().any(|r| r.include_logs)
+        || query.traces.iter().any(|r| r.include_transaction_logs);
+    if !log_fields.is_empty() && query.logs.is_empty() && !any_includes_logs {
         return Err(anyhow!(
-            "LogFields were specified but no LogRequest was provided in the query"
+            "LogFields were specified but logs will never be fetched: \
+             add a LogRequest or set include_logs=True on a request"
         ));
     }
-    if !trace_fields.is_empty() && query.traces.is_empty() {
+    let any_includes_traces = query.transactions.iter().any(|r| r.include_traces)
+        || query.logs.iter().any(|r| r.include_transaction_traces)
+        || query.traces.iter().any(|r| r.include_transaction_traces);
+    if !trace_fields.is_empty() && query.traces.is_empty() && !any_includes_traces {
         return Err(anyhow!(
-            "TraceFields were specified but no TraceRequest was provided in the query"
+            "TraceFields were specified but traces will never be fetched: \
+             add a TraceRequest or set include_traces=True on a request"
         ));
     }
     let any_request_includes_blocks = query.transactions.iter().any(|r| r.include_blocks)

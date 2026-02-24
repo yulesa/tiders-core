@@ -105,12 +105,16 @@ fn map_log_request(r: &evm::LogRequest) -> cherry_rpc_client::LogRequest {
         topic1: r.topic1.iter().map(|t| cherry_rpc_client::Topic(t.0)).collect(),
         topic2: r.topic2.iter().map(|t| cherry_rpc_client::Topic(t.0)).collect(),
         topic3: r.topic3.iter().map(|t| cherry_rpc_client::Topic(t.0)).collect(),
+        include_transactions: r.include_transactions,
+        include_transaction_logs: r.include_transaction_logs,
+        include_transaction_traces: r.include_transaction_traces,
+        include_blocks: r.include_blocks,
     }
 }
 
 fn map_tx_request(r: &evm::TransactionRequest) -> cherry_rpc_client::TransactionRequest {
     cherry_rpc_client::TransactionRequest {
-        from: r.from_.iter().map(|a| cherry_rpc_client::Address(a.0)).collect(),
+        from_: r.from_.iter().map(|a| cherry_rpc_client::Address(a.0)).collect(),
         to: r.to.iter().map(|a| cherry_rpc_client::Address(a.0)).collect(),
         sighash: r.sighash.iter().map(|s| cherry_rpc_client::Sighash(s.0)).collect(),
         status: r.status.clone(),
@@ -121,12 +125,15 @@ fn map_tx_request(r: &evm::TransactionRequest) -> cherry_rpc_client::Transaction
             .map(|a| cherry_rpc_client::Address(a.0))
             .collect(),
         hash: r.hash.iter().map(|h| cherry_rpc_client::Hash(h.0)).collect(),
+        include_logs: r.include_logs,
+        include_traces: r.include_traces,
+        include_blocks: r.include_blocks,
     }
 }
 
 fn map_trace_request(r: &evm::TraceRequest) -> cherry_rpc_client::TraceRequest {
     cherry_rpc_client::TraceRequest {
-        from: r.from_.iter().map(|a| cherry_rpc_client::Address(a.0)).collect(),
+        from_: r.from_.iter().map(|a| cherry_rpc_client::Address(a.0)).collect(),
         to: r.to.iter().map(|a| cherry_rpc_client::Address(a.0)).collect(),
         address: r.address.iter().map(|a| cherry_rpc_client::Address(a.0)).collect(),
         call_type: r.call_type.clone(),
@@ -135,6 +142,10 @@ fn map_trace_request(r: &evm::TraceRequest) -> cherry_rpc_client::TraceRequest {
         sighash: r.sighash.iter().map(|s| cherry_rpc_client::Sighash(s.0)).collect(),
         author: r.author.iter().map(|a| cherry_rpc_client::Address(a.0)).collect(),
         trace_method: cherry_rpc_client::TraceMethod::default(),
+        include_transactions: r.include_transactions,
+        include_transaction_logs: r.include_transaction_logs,
+        include_transaction_traces: r.include_transaction_traces,
+        include_blocks: r.include_blocks,
     }
 }
 
