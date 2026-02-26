@@ -112,7 +112,6 @@ pub async fn start_stream(cfg: ProviderConfig, query: crate::Query) -> Result<Da
     if cfg.compute_units_per_second.is_some()
         || cfg.max_concurrent_requests.is_some()
         || cfg.batch_size.is_some()
-        || cfg.rpc_batch_size.is_some()
         || cfg.reorg_safe_distance.is_some()
         || cfg.trace_method.is_some()
     {

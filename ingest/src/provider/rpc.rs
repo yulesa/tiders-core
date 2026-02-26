@@ -67,9 +67,6 @@ fn map_client_config(cfg: &ProviderConfig) -> Result<ClientConfig> {
     if let Some(v) = cfg.batch_size {
         client_config.batch_size = Some(v);
     }
-    if let Some(v) = cfg.rpc_batch_size {
-        client_config.rpc_batch_size = Some(v);
-    }
     if let Some(v) = cfg.reorg_safe_distance {
         client_config.reorg_safe_distance = v;
     }

@@ -56,7 +56,6 @@ pub struct ProviderConfig {
     pub compute_units_per_second: Option<u64>,
     pub max_concurrent_requests: Option<usize>,
     pub batch_size: Option<usize>,
-    pub rpc_batch_size: Option<usize>,
     pub reorg_safe_distance: Option<u64>,
     pub trace_method: Option<RpcTraceMethod>,
 }
@@ -78,7 +77,6 @@ impl ProviderConfig {
             compute_units_per_second: None,
             max_concurrent_requests: None,
             batch_size: None,
-            rpc_batch_size: None,
             reorg_safe_distance: None,
             trace_method: None,
         }
