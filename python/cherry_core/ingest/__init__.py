@@ -40,7 +40,6 @@ class ProviderConfig:
     buffer_size: Optional[int] = None  # (Optional) Determines how many responses store in a buffer before sending them to the consumer.
     # RPC-specific fields
     compute_units_per_second: Optional[int] = None  # (Optional) Rate limit in compute units per second.
-    max_concurrent_requests: Optional[int] = None  # (Optional) Maximum number of concurrent RPC requests.
     batch_size: Optional[int] = None  # (Optional) Number of blocks fetched per batch.
     reorg_safe_distance: Optional[int] = None  # (Optional) Number of blocks behind head considered reorg-safe.
     trace_method: Optional[str] = None  # (Optional) Trace method: "trace_block" or "debug_trace_block_by_number".

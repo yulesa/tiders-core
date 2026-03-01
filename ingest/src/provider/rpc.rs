@@ -33,6 +33,8 @@ fn map_client_config(cfg: &ProviderConfig) -> Result<ClientConfig> {
 
     let mut client_config = ClientConfig::new(url);
 
+    client_config.bearer_token = cfg.bearer_token.clone();
+
     if let Some(v) = cfg.max_num_retries {
         client_config.max_num_retries = v as u32;
     }
@@ -60,9 +62,6 @@ fn map_client_config(cfg: &ProviderConfig) -> Result<ClientConfig> {
 
     if let Some(v) = cfg.compute_units_per_second {
         client_config.compute_units_per_second = Some(v);
-    }
-    if let Some(v) = cfg.max_concurrent_requests {
-        client_config.max_concurrent_requests = Some(v);
     }
     if let Some(v) = cfg.batch_size {
         client_config.batch_size = Some(v);

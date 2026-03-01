@@ -543,7 +543,6 @@ fn evm_query_to_sqd(query: &evm::Query) -> Result<sqd_portal_client::evm::Query>
 
 pub fn start_stream(cfg: ProviderConfig, query: crate::Query) -> Result<DataStream> {
     if cfg.compute_units_per_second.is_some()
-        || cfg.max_concurrent_requests.is_some()
         || cfg.batch_size.is_some()
         || cfg.reorg_safe_distance.is_some()
         || cfg.trace_method.is_some()
