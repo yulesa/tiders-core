@@ -1,6 +1,6 @@
 use crate::{evm, DataStream, ProviderConfig, Query, RpcTraceMethod};
 use anyhow::{anyhow, Context, Result};
-use cherry_rpc_client::{Client, ClientConfig};
+use tiders_rpc_client::{Client, ClientConfig};
 use futures_lite::StreamExt;
 
 pub fn start_stream(provider_config: ProviderConfig, query: Query) -> Result<DataStream> {
@@ -72,9 +72,9 @@ fn map_client_config(cfg: &ProviderConfig) -> Result<ClientConfig> {
 
     if let Some(v) = cfg.trace_method {
         client_config.trace_method = Some(match v {
-            RpcTraceMethod::TraceBlock => cherry_rpc_client::TraceMethod::TraceBlock,
+            RpcTraceMethod::TraceBlock => tiders_rpc_client::TraceMethod::TraceBlock,
             RpcTraceMethod::DebugTraceBlockByNumber => {
-                cherry_rpc_client::TraceMethod::DebugTraceBlockByNumber
+                tiders_rpc_client::TraceMethod::DebugTraceBlockByNumber
             }
         });
     }
@@ -82,8 +82,8 @@ fn map_client_config(cfg: &ProviderConfig) -> Result<ClientConfig> {
     Ok(client_config)
 }
 
-fn map_query(q: &evm::Query) -> cherry_rpc_client::Query {
-    cherry_rpc_client::Query {
+fn map_query(q: &evm::Query) -> tiders_rpc_client::Query {
+    tiders_rpc_client::Query {
         from_block: q.from_block,
         to_block: q.to_block,
         include_all_blocks: q.include_all_blocks,
@@ -94,13 +94,13 @@ fn map_query(q: &evm::Query) -> cherry_rpc_client::Query {
     }
 }
 
-fn map_log_request(r: &evm::LogRequest) -> cherry_rpc_client::LogRequest {
-    cherry_rpc_client::LogRequest {
-        address: r.address.iter().map(|a| cherry_rpc_client::Address(a.0)).collect(),
-        topic0: r.topic0.iter().map(|t| cherry_rpc_client::Topic(t.0)).collect(),
-        topic1: r.topic1.iter().map(|t| cherry_rpc_client::Topic(t.0)).collect(),
-        topic2: r.topic2.iter().map(|t| cherry_rpc_client::Topic(t.0)).collect(),
-        topic3: r.topic3.iter().map(|t| cherry_rpc_client::Topic(t.0)).collect(),
+fn map_log_request(r: &evm::LogRequest) -> tiders_rpc_client::LogRequest {
+    tiders_rpc_client::LogRequest {
+        address: r.address.iter().map(|a| tiders_rpc_client::Address(a.0)).collect(),
+        topic0: r.topic0.iter().map(|t| tiders_rpc_client::Topic(t.0)).collect(),
+        topic1: r.topic1.iter().map(|t| tiders_rpc_client::Topic(t.0)).collect(),
+        topic2: r.topic2.iter().map(|t| tiders_rpc_client::Topic(t.0)).collect(),
+        topic3: r.topic3.iter().map(|t| tiders_rpc_client::Topic(t.0)).collect(),
         include_transactions: r.include_transactions,
         include_transaction_logs: r.include_transaction_logs,
         include_transaction_traces: r.include_transaction_traces,
@@ -108,36 +108,36 @@ fn map_log_request(r: &evm::LogRequest) -> cherry_rpc_client::LogRequest {
     }
 }
 
-fn map_tx_request(r: &evm::TransactionRequest) -> cherry_rpc_client::TransactionRequest {
-    cherry_rpc_client::TransactionRequest {
-        from_: r.from_.iter().map(|a| cherry_rpc_client::Address(a.0)).collect(),
-        to: r.to.iter().map(|a| cherry_rpc_client::Address(a.0)).collect(),
-        sighash: r.sighash.iter().map(|s| cherry_rpc_client::Sighash(s.0)).collect(),
+fn map_tx_request(r: &evm::TransactionRequest) -> tiders_rpc_client::TransactionRequest {
+    tiders_rpc_client::TransactionRequest {
+        from_: r.from_.iter().map(|a| tiders_rpc_client::Address(a.0)).collect(),
+        to: r.to.iter().map(|a| tiders_rpc_client::Address(a.0)).collect(),
+        sighash: r.sighash.iter().map(|s| tiders_rpc_client::Sighash(s.0)).collect(),
         status: r.status.clone(),
         type_: r.type_.clone(),
         contract_deployment_address: r
             .contract_deployment_address
             .iter()
-            .map(|a| cherry_rpc_client::Address(a.0))
+            .map(|a| tiders_rpc_client::Address(a.0))
             .collect(),
-        hash: r.hash.iter().map(|h| cherry_rpc_client::Hash(h.0)).collect(),
+        hash: r.hash.iter().map(|h| tiders_rpc_client::Hash(h.0)).collect(),
         include_logs: r.include_logs,
         include_traces: r.include_traces,
         include_blocks: r.include_blocks,
     }
 }
 
-fn map_trace_request(r: &evm::TraceRequest) -> cherry_rpc_client::TraceRequest {
-    cherry_rpc_client::TraceRequest {
-        from_: r.from_.iter().map(|a| cherry_rpc_client::Address(a.0)).collect(),
-        to: r.to.iter().map(|a| cherry_rpc_client::Address(a.0)).collect(),
-        address: r.address.iter().map(|a| cherry_rpc_client::Address(a.0)).collect(),
+fn map_trace_request(r: &evm::TraceRequest) -> tiders_rpc_client::TraceRequest {
+    tiders_rpc_client::TraceRequest {
+        from_: r.from_.iter().map(|a| tiders_rpc_client::Address(a.0)).collect(),
+        to: r.to.iter().map(|a| tiders_rpc_client::Address(a.0)).collect(),
+        address: r.address.iter().map(|a| tiders_rpc_client::Address(a.0)).collect(),
         call_type: r.call_type.clone(),
         reward_type: r.reward_type.clone(),
         type_: r.type_.clone(),
-        sighash: r.sighash.iter().map(|s| cherry_rpc_client::Sighash(s.0)).collect(),
-        author: r.author.iter().map(|a| cherry_rpc_client::Address(a.0)).collect(),
-        trace_method: cherry_rpc_client::TraceMethod::default(),
+        sighash: r.sighash.iter().map(|s| tiders_rpc_client::Sighash(s.0)).collect(),
+        author: r.author.iter().map(|a| tiders_rpc_client::Address(a.0)).collect(),
+        trace_method: tiders_rpc_client::TraceMethod::default(),
         include_transactions: r.include_transactions,
         include_transaction_logs: r.include_transaction_logs,
         include_transaction_traces: r.include_transaction_traces,
@@ -145,9 +145,9 @@ fn map_trace_request(r: &evm::TraceRequest) -> cherry_rpc_client::TraceRequest {
     }
 }
 
-fn map_fields(f: &evm::Fields) -> cherry_rpc_client::Fields {
-    cherry_rpc_client::Fields {
-        block: cherry_rpc_client::BlockFields {
+fn map_fields(f: &evm::Fields) -> tiders_rpc_client::Fields {
+    tiders_rpc_client::Fields {
+        block: tiders_rpc_client::BlockFields {
             number: f.block.number,
             hash: f.block.hash,
             parent_hash: f.block.parent_hash,
@@ -177,7 +177,7 @@ fn map_fields(f: &evm::Fields) -> cherry_rpc_client::Fields {
             send_root: f.block.send_root,
             mix_hash: f.block.mix_hash,
         },
-        transaction: cherry_rpc_client::TransactionFields {
+        transaction: tiders_rpc_client::TransactionFields {
             block_hash: f.transaction.block_hash,
             block_number: f.transaction.block_number,
             from: f.transaction.from_,
@@ -223,7 +223,7 @@ fn map_fields(f: &evm::Fields) -> cherry_rpc_client::Fields {
             mint: f.transaction.mint,
             source_hash: f.transaction.source_hash,
         },
-        log: cherry_rpc_client::LogFields {
+        log: tiders_rpc_client::LogFields {
             removed: f.log.removed,
             log_index: f.log.log_index,
             transaction_index: f.log.transaction_index,
@@ -237,7 +237,7 @@ fn map_fields(f: &evm::Fields) -> cherry_rpc_client::Fields {
             topic2: f.log.topic2,
             topic3: f.log.topic3,
         },
-        trace: cherry_rpc_client::TraceFields {
+        trace: tiders_rpc_client::TraceFields {
             from: f.trace.from_,
             to: f.trace.to,
             call_type: f.trace.call_type,

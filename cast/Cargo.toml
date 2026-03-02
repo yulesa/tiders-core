@@ -1,10 +1,10 @@
 [package]
-name = "cherry-cast"
+name = "tiders-cast"
 version = "0.3.0"
 edition = "2021"
 description = "Library for casting arrow colums with support for specific blockchain types"
-homepage = "https://github.com/steelcake/cherry-core"
-repository = "https://github.com/steelcake/cherry-core"
+homepage = "https://github.com/yulesa/tiders-core"
+repository = "https://github.com/yulesa/tiders-core"
 authors = ["Ozgur Akkurt <oezgurmakkurt@gmail.com>"]
 license = "MIT OR Apache-2.0"
 

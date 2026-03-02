@@ -1,6 +1,6 @@
-# cherry-core
+# tiders-core
 
-Core libraries for `cherry` blockchain data pipeline framework.
+Core libraries for `tiders` blockchain data pipeline framework.
 
 ## License
 

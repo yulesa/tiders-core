@@ -1,4 +1,4 @@
-# cherry-core python bindings
+# tiders-core python bindings
 
 ## License
 

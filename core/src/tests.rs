@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
-use cherry_evm_decode::{decode_events, signature_to_topic0};
-use cherry_ingest::evm::{Address, Topic};
+use tiders_evm_decode::{decode_events, signature_to_topic0};
+use tiders_ingest::evm::{Address, Topic};
 use futures_lite::StreamExt;
 use hypersync_client::{self, ClientConfig, StreamConfig};
 
-async fn erc20(cfg: cherry_ingest::ProviderConfig, query: cherry_ingest::Query) {
+async fn erc20(cfg: tiders_ingest::ProviderConfig, query: tiders_ingest::Query) {
     let signature = "Transfer(address indexed from, address indexed to, uint256 amount)";
-    let mut stream = cherry_ingest::start_stream(cfg, query).await.unwrap();
+    let mut stream = tiders_ingest::start_stream(cfg, query).await.unwrap();
 
     while let Some(v) = stream.next().await {
         let v = v.unwrap();
@@ -16,13 +16,13 @@ async fn erc20(cfg: cherry_ingest::ProviderConfig, query: cherry_ingest::Query) 
     }
 }
 
-fn erc20_query() -> cherry_ingest::Query {
+fn erc20_query() -> tiders_ingest::Query {
     let signature = "Transfer(address indexed from, address indexed to, uint256 amount)";
-    cherry_ingest::Query::Evm(cherry_ingest::evm::Query {
+    tiders_ingest::Query::Evm(tiders_ingest::evm::Query {
         from_block: 18123123,
         to_block: Some(18123222),
-        fields: cherry_ingest::evm::Fields::all(),
-        logs: vec![cherry_ingest::evm::LogRequest {
+        fields: tiders_ingest::evm::Fields::all(),
+        logs: vec![tiders_ingest::evm::LogRequest {
             address: vec![Address(decode_hex(
                 "0xdAC17F958D2ee523a2206206994597C13D831ec7",
             ))],
@@ -36,7 +36,7 @@ fn erc20_query() -> cherry_ingest::Query {
 #[tokio::test(flavor = "multi_thread")]
 #[ignore]
 async fn erc20_hypersync() {
-    let provider = cherry_ingest::ProviderConfig::new(cherry_ingest::ProviderKind::Hypersync);
+    let provider = tiders_ingest::ProviderConfig::new(tiders_ingest::ProviderKind::Hypersync);
     let query = erc20_query();
     erc20(provider, query).await;
 }
@@ -44,9 +44,9 @@ async fn erc20_hypersync() {
 #[tokio::test(flavor = "multi_thread")]
 #[ignore]
 async fn erc20_sqd() {
-    let provider = cherry_ingest::ProviderConfig {
+    let provider = tiders_ingest::ProviderConfig {
         url: Some("https://portal.sqd.dev/datasets/ethereum-mainnet".to_owned()),
-        ..cherry_ingest::ProviderConfig::new(cherry_ingest::ProviderKind::Sqd)
+        ..tiders_ingest::ProviderConfig::new(tiders_ingest::ProviderKind::Sqd)
     };
     erc20(provider, erc20_query()).await;
 }

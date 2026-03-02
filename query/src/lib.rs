@@ -692,7 +692,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn basic_test_cherry_query() {
+    fn basic_test_tiders_query() {
         let team_a = RecordBatch::try_new(
             Arc::new(Schema::new(vec![
                 Arc::new(Field::new("name", DataType::Utf8, true)),

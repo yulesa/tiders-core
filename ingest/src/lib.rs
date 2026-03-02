@@ -127,7 +127,7 @@ impl<'py> pyo3::FromPyObject<'py> for ProviderKind {
 
 type DataStream = Pin<Box<dyn Stream<Item = Result<BTreeMap<String, RecordBatch>>> + Send + Sync>>;
 
-fn make_req_fields<T: DeserializeOwned>(query: &cherry_query::Query) -> Result<T> {
+fn make_req_fields<T: DeserializeOwned>(query: &tiders_query::Query) -> Result<T> {
     let mut req_fields_query = query.clone();
     req_fields_query
         .add_request_and_include_fields()
@@ -185,7 +185,7 @@ pub async fn start_stream(provider_config: ProviderConfig, mut query: Query) -> 
         async {
             rayon_async::spawn(move || {
                 res.and_then(move |data| {
-                    let data = cherry_query::run_query(&data, &generic_query)
+                    let data = tiders_query::run_query(&data, &generic_query)
                         .context("run local query")?;
                     Ok(data)
                 })

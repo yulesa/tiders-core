@@ -1,4 +1,4 @@
-from cherry_core import base58_encode_bytes, base58_decode_string
+from tiders_core import base58_encode_bytes, base58_decode_string
 
 b = b"asdlmsa;dm1123213213:SDMA"
 

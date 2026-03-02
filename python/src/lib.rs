@@ -24,7 +24,7 @@ static TOKIO_RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
 });
 
 #[pymodule]
-fn cherry_core(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn tiders_core(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     env_logger::Builder::new()
         .filter_level(log::LevelFilter::Info)
         .parse_default_env()

@@ -1,24 +1,24 @@
-# cherry-core Architecture Overview
+# tiders-core Architecture Overview
 
 ## Project Structure
 
-**cherry-core** is a high-performance Rust workspace providing core libraries for the `cherry` blockchain data pipeline framework. It handles data ingestion, decoding, querying, and type casting for both EVM (Ethereum) and SVM (Solana) blockchains, with all data represented as Apache Arrow RecordBatches.
+**tiders-core** is a high-performance Rust workspace providing core libraries for the `tiders` blockchain data pipeline framework. It handles data ingestion, decoding, querying, and type casting for both EVM (Ethereum) and SVM (Solana) blockchains, with all data represented as Apache Arrow RecordBatches.
 
 ### Workspace Organization
 
 The project is a Cargo workspace with 9 crates:
 
 #### 1. **core/** - Aggregator Crate
-[core/Cargo.toml](core/Cargo.toml) - Re-exports all other crates under a single `cherry-core` umbrella.
+[core/Cargo.toml](core/Cargo.toml) - Re-exports all other crates under a single `tiders-core` umbrella.
 
 [core/src/lib.rs](core/src/lib.rs) simply re-exports:
-- `cherry_cast` as `cast`
-- `cherry_evm_decode` as `evm_decode`
-- `cherry_evm_schema` as `evm_schema`
-- `cherry_ingest` as `ingest`
-- `cherry_query` as `query`
-- `cherry_svm_decode` as `svm_decode`
-- `cherry_svm_schema` as `svm_schema`
+- `tiders_cast` as `cast`
+- `tiders_evm_decode` as `evm_decode`
+- `tiders_evm_schema` as `evm_schema`
+- `tiders_ingest` as `ingest`
+- `tiders_query` as `query`
+- `tiders_svm_decode` as `svm_decode`
+- `tiders_svm_schema` as `svm_schema`
 
 #### 2. **evm-decode/** - EVM Event & Call Decoding
 [evm-decode/Cargo.toml](evm-decode/Cargo.toml) - Decodes EVM event logs and function call data from raw binary into Arrow RecordBatches.
@@ -139,12 +139,12 @@ Each builder struct has typed Arrow builder fields and a `finish()` method that 
 - Provider implementations live in [ingest/src/provider/](ingest/src/provider/):
   - `sqd.rs`: SQD Network provider (supports both EVM and SVM)
   - `hypersync.rs`: HyperSync provider (EVM only)
-  - `common.rs`: Converts chain-specific queries to generic `cherry_query::Query`
-- After raw data is fetched from a provider, `cherry_query::run_query()` is applied locally via Rayon (offloaded from the async runtime using `rayon_async`)
+  - `common.rs`: Converts chain-specific queries to generic `tiders_query::Query`
+- After raw data is fetched from a provider, `tiders_query::run_query()` is applied locally via Rayon (offloaded from the async runtime using `rayon_async`)
 - The stream yields `BTreeMap<String, RecordBatch>` where keys are table names (e.g., "blocks", "transactions", "logs")
 
 #### 9. **python/** - Python Bindings (PyO3)
-[python/Cargo.toml](python/Cargo.toml) - Exposes all cherry-core functionality to Python via PyO3, published as the `cherry-core` Python package.
+[python/Cargo.toml](python/Cargo.toml) - Exposes all tiders-core functionality to Python via PyO3, published as the `tiders-core` Python package.
 
 **Public API ([python/src/lib.rs](python/src/lib.rs)):**
 All functions accept/return PyArrow objects and delegate to the Rust implementations:
@@ -200,7 +200,7 @@ Filtered Arrow RecordBatches
     |  (PyArrow <-> Arrow via PyO3) |
     +-------------------------------+
                      |
-              cherry (Python ETL)
+              tiders (Python ETL)
                      |
     +--------+--------+--------+--------+--------+
     | DuckDB | Iceberg | Delta  | Click- | PyArrow|
