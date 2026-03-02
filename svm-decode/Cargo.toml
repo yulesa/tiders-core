@@ -21,3 +21,6 @@ pyo3 = ["dep:pyo3"]
 
 [dev-dependencies]
 parquet = { workspace = true }
+
+[lints]
+workspace = true
