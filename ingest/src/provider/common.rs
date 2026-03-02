@@ -1,7 +1,7 @@
 use crate::{evm, svm};
 use anyhow::{anyhow, Result};
 use arrow::array::{Array, BinaryArray, StringArray, UInt8Array};
-use cherry_query::{Filter, Include, Query as GenericQuery, TableSelection};
+use tiders_query::{Filter, Include, Query as GenericQuery, TableSelection};
 use serde::Serialize;
 use std::{
     collections::{BTreeMap, BTreeSet},

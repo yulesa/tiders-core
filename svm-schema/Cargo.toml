@@ -1,10 +1,10 @@
 [package]
-name = "cherry-svm-schema"
+name = "tiders-svm-schema"
 version = "0.2.0"
 edition = "2021"
-description = "SVM schema definitions for cherry"
-homepage = "https://github.com/steelcake/cherry-core"
-repository = "https://github.com/steelcake/cherry-core"
+description = "SVM schema definitions for tiders"
+homepage = "https://github.com/yulesa/tiders-core"
+repository = "https://github.com/yulesa/tiders-core"
 authors = ["Ozgur Akkurt <oezgurmakkurt@gmail.com>"]
 license = "MIT OR Apache-2.0"
 

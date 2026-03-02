@@ -1,10 +1,10 @@
 [package]
-name = "cherry-evm-decode"
+name = "tiders-evm-decode"
 version = "0.2.0"
 edition = "2021"
 description = "EVM decoding implementations in Arrow format"
-homepage = "https://github.com/steelcake/cherry-core"
-repository = "https://github.com/steelcake/cherry-core"
+homepage = "https://github.com/yulesa/tiders-core"
+repository = "https://github.com/yulesa/tiders-core"
 authors = ["Ozgur Akkurt <oezgurmakkurt@gmail.com>"]
 license = "MIT OR Apache-2.0"
 

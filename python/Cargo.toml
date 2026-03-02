@@ -1,20 +1,20 @@
 [package]
-name = "cherry-core-python"
+name = "tiders-core-python"
 version = "0.7.0"
 edition = "2021"
-description = "Core library for cherry blockchain data framework"
-homepage = "https://github.com/steelcake/cherry-core"
-repository = "https://github.com/steelcake/cherry-core"
+description = "Core library for tiders blockchain data framework"
+homepage = "https://github.com/yulesa/tiders-core"
+repository = "https://github.com/yulesa/tiders-core"
 authors = ["Ozgur Akkurt <oezgurmakkurt@gmail.com>"]
 license = "MIT OR Apache-2.0"
 
 [lib]
-name = "cherry_core"
+name = "tiders_core"
 crate-type = ["cdylib"]
 
 [dependencies]
 pyo3 = { workspace = true, features = ["anyhow", "experimental-async"] }
-baselib = { package = "cherry-core", path = "../core", features = ["pyo3"] }
+baselib = { package = "tiders-core", path = "../core", features = ["pyo3"] }
 arrow = { workspace = true , features = ["pyarrow"] }
 anyhow = { workspace = true } 
 faster-hex = { workspace = true } 

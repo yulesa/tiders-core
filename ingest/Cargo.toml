@@ -1,10 +1,10 @@
 [package]
-name = "cherry-ingest"
+name = "tiders-ingest"
 version = "0.5.0"
 edition = "2021"
 description = "Library for ingesting evm data using common a query/response format"
-homepage = "https://github.com/steelcake/cherry-core"
-repository = "https://github.com/steelcake/cherry-core"
+homepage = "https://github.com/yulesa/tiders-core"
+repository = "https://github.com/yulesa/tiders-core"
 authors = ["Ozgur Akkurt <oezgurmakkurt@gmail.com>"]
 license = "MIT OR Apache-2.0"
 
@@ -28,11 +28,11 @@ alloy-primitives = { workspace = true, features = ["serde"] }
 bs58 = { workspace = true }
 rayon = { workspace = true }
 
-cherry-evm-schema = { path = "../evm-schema", version = "0.2.0" }
-cherry-cast = { path = "../cast", version = "0.3.0" }
-cherry-query = { path = "../query", version = "0.3.0" }
-cherry-svm-schema = { path = "../svm-schema", version = "0.2.0" }
-cherry-rpc-client = { path = "../../cherry-rpc-client/rust", version = "0.1.0" }
+tiders-evm-schema = { path = "../evm-schema", version = "0.2.0" }
+tiders-cast = { path = "../cast", version = "0.3.0" }
+tiders-query = { path = "../query", version = "0.3.0" }
+tiders-svm-schema = { path = "../svm-schema", version = "0.2.0" }
+tiders-rpc-client = { path = "../../tiders-rpc-client/rust", version = "0.1.0" }
 
 [dev-dependencies]
 parquet = { workspace = true }

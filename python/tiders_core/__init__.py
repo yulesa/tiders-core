@@ -1,4 +1,4 @@
-import cherry_core.cherry_core as cc
+import tiders_core.tiders_core as cc
 from . import svm_decode
 from typing import Tuple
 import pyarrow

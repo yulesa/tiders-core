@@ -5,7 +5,7 @@ use log::warn;
 use arrow::array::ListBuilder;
 use arrow::array::{builder, new_null_array, Array, BinaryArray, BinaryBuilder, RecordBatch};
 use arrow::datatypes::DataType;
-use cherry_evm_schema::AccessListBuilder;
+use tiders_evm_schema::AccessListBuilder;
 use hypersync_client::format::AccessList;
 use hypersync_client::net_types::{self as hypersync_nt, JoinMode};
 use std::sync::Arc;
@@ -319,7 +319,7 @@ fn map_hypersync_binary_array_to_u8(
 ) -> Result<Arc<dyn Array>> {
     let arr = map_hypersync_array(batch, name, num_rows, &DataType::Binary)?;
     let arr = arr.as_any().downcast_ref::<BinaryArray>().unwrap();
-    let arr = cherry_cast::u256_column_from_binary(arr)
+    let arr = tiders_cast::u256_column_from_binary(arr)
         .with_context(|| format!("parse u256 values in {} column", name))?;
     let arr: &dyn Array = &arr;
     let arr = arrow::compute::cast(arr, &DataType::UInt8)
@@ -334,7 +334,7 @@ fn map_hypersync_binary_array_to_decimal256(
 ) -> Result<Arc<dyn Array>> {
     let arr = map_hypersync_array(batch, name, num_rows, &DataType::Binary)?;
     let arr = arr.as_any().downcast_ref::<BinaryArray>().unwrap();
-    let arr = cherry_cast::u256_column_from_binary(arr)
+    let arr = tiders_cast::u256_column_from_binary(arr)
         .with_context(|| format!("parse u256 values in {} column", name))?;
     Ok(Arc::new(arr))
 }
@@ -460,7 +460,7 @@ fn map_hypersync_binary_array_to_list_hashes(
 fn map_blocks(blocks: &[hypersync_client::ArrowBatch]) -> Result<RecordBatch> {
     let mut batches = Vec::with_capacity(blocks.len());
 
-    let schema = Arc::new(cherry_evm_schema::blocks_schema());
+    let schema = Arc::new(tiders_evm_schema::blocks_schema());
 
     for batch in blocks.iter() {
         let batch = polars_arrow_to_arrow_rs(batch);
@@ -523,7 +523,7 @@ fn map_blocks(blocks: &[hypersync_client::ArrowBatch]) -> Result<RecordBatch> {
 fn map_transactions(transactions: &[hypersync_client::ArrowBatch]) -> Result<RecordBatch> {
     let mut batches = Vec::with_capacity(transactions.len());
 
-    let schema = Arc::new(cherry_evm_schema::transactions_schema());
+    let schema = Arc::new(tiders_evm_schema::transactions_schema());
 
     for batch in transactions.iter() {
         let batch = polars_arrow_to_arrow_rs(batch);
@@ -612,7 +612,7 @@ fn map_transactions(transactions: &[hypersync_client::ArrowBatch]) -> Result<Rec
 fn map_logs(logs: &[hypersync_client::ArrowBatch]) -> Result<RecordBatch> {
     let mut batches = Vec::with_capacity(logs.len());
 
-    let schema = Arc::new(cherry_evm_schema::logs_schema());
+    let schema = Arc::new(tiders_evm_schema::logs_schema());
 
     for batch in logs.iter() {
         let batch = polars_arrow_to_arrow_rs(batch);
@@ -644,7 +644,7 @@ fn map_logs(logs: &[hypersync_client::ArrowBatch]) -> Result<RecordBatch> {
 fn map_traces(traces: &[hypersync_client::ArrowBatch]) -> Result<RecordBatch> {
     let mut batches = Vec::with_capacity(traces.len());
 
-    let schema = Arc::new(cherry_evm_schema::traces_schema());
+    let schema = Arc::new(tiders_evm_schema::traces_schema());
 
     for batch in traces.iter() {
         let batch = polars_arrow_to_arrow_rs(batch);

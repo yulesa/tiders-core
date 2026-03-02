@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import pyarrow
 from enum import Enum
 from . import evm, svm
-import cherry_core.cherry_core as cc
+import tiders_core.tiders_core as cc
 
 
 class ProviderKind(str, Enum):

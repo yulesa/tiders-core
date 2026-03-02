@@ -1,21 +1,21 @@
 [package]
-name = "cherry-core"
+name = "tiders-core"
 version = "0.7.0"
 edition = "2021"
-description = "Core library for cherry blockchain data framework"
-homepage = "https://github.com/steelcake/cherry-core"
-repository = "https://github.com/steelcake/cherry-core"
+description = "Core library for tiders blockchain data framework"
+homepage = "https://github.com/yulesa/tiders-core"
+repository = "https://github.com/yulesa/tiders-core"
 authors = ["Ozgur Akkurt <oezgurmakkurt@gmail.com>"]
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-cherry-evm-decode = { path = "../evm-decode", version = "0.2.0" }
-cherry-cast = { path = "../cast", version = "0.3.0" }
-cherry-svm-decode = { path = "../svm-decode", version = "0.4.0" }
-cherry-evm-schema = { path = "../evm-schema", version = "0.2.0" }
-cherry-svm-schema = { path = "../svm-schema", version = "0.2.0" }
-cherry-ingest = { path = "../ingest", version ="0.5.0" }
-cherry-query = { path = "../query", version = "0.3.0" }
+tiders-evm-decode = { path = "../evm-decode", version = "0.2.0" }
+tiders-cast = { path = "../cast", version = "0.3.0" }
+tiders-svm-decode = { path = "../svm-decode", version = "0.4.0" }
+tiders-evm-schema = { path = "../evm-schema", version = "0.2.0" }
+tiders-svm-schema = { path = "../svm-schema", version = "0.2.0" }
+tiders-ingest = { path = "../ingest", version ="0.5.0" }
+tiders-query = { path = "../query", version = "0.3.0" }
 
 [dev-dependencies]
 hypersync-client = { workspace = true } 
@@ -27,7 +27,7 @@ futures-lite = "2"
 faster-hex = { workspace = true }
 
 [features]
-pyo3 = ["cherry-ingest/pyo3", "cherry-svm-decode/pyo3"]
+pyo3 = ["tiders-ingest/pyo3", "tiders-svm-decode/pyo3"]
 
 [lints]
 workspace = true
