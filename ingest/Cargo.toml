@@ -1,6 +1,6 @@
 [package]
 name = "tiders-ingest"
-version = "0.5.0"
+version = "0.1.0"
 edition = "2021"
 description = "Library for ingesting evm data using common a query/response format"
 homepage = "https://github.com/yulesa/tiders-core"
@@ -28,10 +28,10 @@ alloy-primitives = { workspace = true, features = ["serde"] }
 bs58 = { workspace = true }
 rayon = { workspace = true }
 
-tiders-evm-schema = { path = "../evm-schema", version = "0.2.0" }
-tiders-cast = { path = "../cast", version = "0.3.0" }
-tiders-query = { path = "../query", version = "0.3.0" }
-tiders-svm-schema = { path = "../svm-schema", version = "0.2.0" }
+tiders-evm-schema = { path = "../evm-schema", version = "0.1.0" }
+tiders-cast = { path = "../cast", version = "0.1.0" }
+tiders-query = { path = "../query", version = "0.1.0" }
+tiders-svm-schema = { path = "../svm-schema", version = "0.1.0" }
 tiders-rpc-client = { path = "../../tiders-rpc-client/rust", version = "0.1.0" }
 
 [dev-dependencies]
