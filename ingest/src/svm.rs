@@ -1,4 +1,6 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
+#[cfg(feature = "pyo3")]
+use anyhow::Context;
 use serde::{Deserialize, Serialize};
 
 #[derive(Default, Debug, Clone)]

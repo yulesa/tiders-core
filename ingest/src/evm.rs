@@ -1,3 +1,4 @@
+#[cfg(feature = "pyo3")]
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
 
