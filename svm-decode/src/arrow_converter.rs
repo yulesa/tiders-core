@@ -4,7 +4,7 @@ use arrow::array::{Array, ListArray};
 use arrow::{
     array::{builder, ArrowPrimitiveType, RecordBatch, StructArray},
     buffer::{NullBuffer, OffsetBuffer},
-    datatypes::*,
+    datatypes::{Int8Type, Int16Type, Int32Type, Int64Type, UInt8Type, UInt16Type, UInt32Type, UInt64Type, DataType, Field, Fields, Decimal128Type, Schema},
 };
 use std::sync::Arc;
 
@@ -22,16 +22,15 @@ pub fn to_arrow(param_type: &DynType, values: Vec<Option<DynValue>>) -> Result<A
         DynType::I16 => to_number::<Int16Type>(&values),
         DynType::I32 => to_number::<Int32Type>(&values),
         DynType::I64 => to_number::<Int64Type>(&values),
-        DynType::I128 => to_decimal128(&values),
+        DynType::I128 | DynType::U128 => to_decimal128(&values),
         DynType::U8 => to_number::<UInt8Type>(&values),
         DynType::U16 => to_number::<UInt16Type>(&values),
         DynType::U32 => to_number::<UInt32Type>(&values),
         DynType::U64 => to_number::<UInt64Type>(&values),
-        DynType::U128 => to_decimal128(&values),
         DynType::Bool => to_bool(&values),
         DynType::FixedArray(inner_type, size) => to_fixed_array(&values, inner_type, *size),
         DynType::Array(inner_type) => to_list(inner_type, values),
-        DynType::Struct(inner_type) => to_struct(inner_type, values),
+        DynType::Struct(inner_type) => to_struct(inner_type, &values),
         DynType::Enum(inner_type) => to_enum(inner_type, values),
         DynType::Option(inner_type) => to_option(inner_type, values),
     }
@@ -51,12 +50,11 @@ pub fn to_arrow_dtype(param_type: &DynType) -> Result<DataType> {
         DynType::I16 => Ok(DataType::Int16),
         DynType::I32 => Ok(DataType::Int32),
         DynType::I64 => Ok(DataType::Int64),
-        DynType::I128 => Ok(DataType::Decimal128(38, 0)),
+        DynType::I128 | DynType::U128 => Ok(DataType::Decimal128(38, 0)),
         DynType::U8 => Ok(DataType::UInt8),
         DynType::U16 => Ok(DataType::UInt16),
         DynType::U32 => Ok(DataType::UInt32),
         DynType::U64 => Ok(DataType::UInt64),
-        DynType::U128 => Ok(DataType::Decimal128(38, 0)),
         DynType::Bool => Ok(DataType::Boolean),
         DynType::FixedArray(inner_type, size) => {
             if **inner_type == DynType::U8 {
@@ -66,7 +64,7 @@ pub fn to_arrow_dtype(param_type: &DynType) -> Result<DataType> {
                     .context("Failed to convert fixed array inner type to arrow type")?;
                 Ok(DataType::FixedSizeList(
                     Arc::new(Field::new("", inner_type, true)),
-                    *size as i32,
+                    i32::try_from(*size).context("fixed array size exceeds i32 range")?,
                 ))
             }
         }
@@ -132,7 +130,7 @@ fn to_option(inner_type: &DynType, values: Vec<Option<DynValue>>) -> Result<Arc<
             Some(DynValue::Option(inner_val)) => {
                 opt_values.push(inner_val.map(|v| *v));
             }
-            _ => return Err(anyhow!("Expected option type, found: {:?}", value)),
+            _ => return Err(anyhow!("Expected option type, found: {value:?}")),
         }
     }
 
@@ -165,7 +163,7 @@ where
 {
     let mut builder = builder::PrimitiveBuilder::<T>::with_capacity(values.len());
 
-    for v in values.iter() {
+    for v in values {
         match v {
             Some(v) => match v {
                 DynValue::I8(v) => builder.append_value(
@@ -208,8 +206,7 @@ where
                 ),
                 _ => {
                     return Err(anyhow!(
-                        "Unexpected value type for number conversion: {:?}",
-                        v
+                        "Unexpected value type for number conversion: {v:?}"
                     ))
                 }
             },
@@ -235,15 +232,18 @@ fn to_decimal128(values: &[Option<DynValue>]) -> Result<Arc<dyn Array>> {
         .with_precision_and_scale(38, 0)
         .map_err(|_| anyhow!("Failed to configure Decimal128 builder"))?;
 
-    for v in values.iter() {
+    for v in values {
         match v {
             Some(v) => match v {
                 DynValue::I128(v) => builder.append_value(*v),
-                DynValue::U128(v) => builder.append_value(*v as i128),
+                DynValue::U128(v) => {
+                    let val = i128::try_from(*v)
+                        .with_context(|| format!("Value {v} exceeds i128::MAX for Decimal128 conversion"))?;
+                    builder.append_value(val);
+                }
                 _ => {
                     return Err(anyhow!(
-                        "Unexpected value type for decimal conversion: {:?}",
-                        v
+                        "Unexpected value type for decimal conversion: {v:?}"
                     ))
                 }
             },
@@ -268,8 +268,7 @@ fn to_bool(values: &[Option<DynValue>]) -> Result<Arc<dyn Array>> {
             Some(DynValue::Bool(b)) => builder.append_value(*b),
             Some(v) => {
                 return Err(anyhow!(
-                    "found unexpected value. Expected: bool, Found: {:?}",
-                    v
+                    "found unexpected value. Expected: bool, Found: {v:?}"
                 ))
             }
             None => builder.append_null(),
@@ -286,7 +285,7 @@ fn to_fixed_array(
     if inner_type == &DynType::U8 {
         to_binary(values)
     } else {
-        Err(anyhow!("Unsupported fixed array type: {:?}", inner_type))
+        Err(anyhow!("Unsupported fixed array type: {inner_type:?}"))
     }
 }
 
@@ -307,14 +306,14 @@ fn to_binary(value: &[Option<DynValue>]) -> Result<Arc<dyn Array>> {
                     .iter()
                     .map(|v| match v {
                         DynValue::U8(v) => Ok(*v),
-                        _ => Err(anyhow!("Expected binary type, found: {:?}", v)),
+                        _ => Err(anyhow!("Expected binary type, found: {v:?}")),
                     })
                     .collect();
 
                 // Append the collected bytes as a single binary value
                 builder.append_value(&bytes?);
             }
-            Some(val) => return Err(anyhow!("Expected binary type, found: {:?}", val)),
+            Some(val) => return Err(anyhow!("Expected binary type, found: {val:?}")),
             None => builder.append_null(),
         }
     }
@@ -337,25 +336,21 @@ fn to_list(param_type: &DynType, param_values: Vec<Option<DynValue>>) -> Result<
     let mut all_valid = true;
 
     for val in param_values {
-        match val {
-            Some(val) => match val {
-                DynValue::Array(inner_vals) => {
-                    lengths.push(inner_vals.len());
-                    inner_values.extend(inner_vals.into_iter().map(Some));
-                    validity.push(true);
-                }
-                _ => {
-                    return Err(anyhow!(
-                        "found unexpected value. Expected list type, Found: {:?}",
-                        val
-                    ));
-                }
-            },
-            None => {
-                lengths.push(0);
-                validity.push(false);
-                all_valid = false;
+        if let Some(val) = val { match val {
+            DynValue::Array(inner_vals) => {
+                lengths.push(inner_vals.len());
+                inner_values.extend(inner_vals.into_iter().map(Some));
+                validity.push(true);
             }
+            _ => {
+                return Err(anyhow!(
+                    "found unexpected value. Expected list type, Found: {val:?}"
+                ));
+            }
+        } } else {
+            lengths.push(0);
+            validity.push(false);
+            all_valid = false;
         }
     }
 
@@ -387,6 +382,7 @@ fn to_list(param_type: &DynType, param_values: Vec<Option<DynValue>>) -> Result<
 ///
 /// # Returns
 /// * `Result<Arc<dyn Array>>` - The converted Arrow array
+#[expect(clippy::cast_possible_truncation, reason = "enum variant count is bounded to fit in u8")]
 fn to_enum(
     variants: &[(String, Option<DynType>)],
     param_values: Vec<Option<DynValue>>,
@@ -394,22 +390,22 @@ fn to_enum(
     let mut values = Vec::with_capacity(param_values.len());
 
     // Helper closure that creates a struct representation for an enum variant
-    let make_struct = |variant_name, inner_val: Option<Box<DynValue>>| {
-        let mut selected_variant_idx = 0;
+    let make_struct = |variant_name: String, inner_val: Option<Box<DynValue>>| -> Result<DynValue> {
+        let selected_variant_idx = variants
+            .iter()
+            .position(|(name, _)| name == &variant_name)
+            .ok_or_else(|| anyhow!("Variant {variant_name} not found in schema"))
+            .map(|i| i as u8)?;
         let struct_inner = variants
             .iter()
-            .enumerate()
-            .map(|(i, (name, dt))| {
+            .map(|(name, dt)| {
                 let is_selected_variant = name == &variant_name;
-                selected_variant_idx = i as u8;
                 match dt {
                     Some(_) => {
                         let data_value = if is_selected_variant {
-                            // Only unwrap when we know inner_val is Some
                             inner_val
                                 .as_ref()
-                                .map(|boxed| DynValue::Option(Some(Box::new((**boxed).clone()))))
-                                .unwrap_or(DynValue::Option(None))
+                                .map_or(DynValue::Option(None), |boxed| DynValue::Option(Some(Box::new((**boxed).clone()))))
                         } else {
                             DynValue::Option(None)
                         };
@@ -421,13 +417,13 @@ fn to_enum(
             })
             .collect::<Vec<_>>();
 
-        DynValue::Struct(vec![
+        Ok(DynValue::Struct(vec![
             (
                 "variant_index".to_string(),
                 DynValue::U8(selected_variant_idx),
             ),
             ("variant_data".to_string(), DynValue::Struct(struct_inner)),
-        ])
+        ]))
     };
 
     for val in param_values {
@@ -436,7 +432,7 @@ fn to_enum(
                 values.push(None);
             }
             Some(DynValue::Enum(variant_name, inner_val)) => {
-                values.push(Some(make_struct(variant_name, inner_val)));
+                values.push(Some(make_struct(variant_name, inner_val)?));
             }
             Some(_) => return Err(anyhow!("type mismatch")),
         }
@@ -456,7 +452,7 @@ fn to_enum(
         ("variant_data".to_string(), DynType::Struct(variants_struct)),
     ];
 
-    to_struct(&enum_struct, values)
+    to_struct(&enum_struct, &values)
 }
 
 /// Converts a vector of struct values into an Arrow struct array.
@@ -469,11 +465,11 @@ fn to_enum(
 /// * `Result<Arc<dyn Array>>` - The converted Arrow array
 fn to_struct(
     fields: &[(String, DynType)],
-    param_values: Vec<Option<DynValue>>,
+    param_values: &[Option<DynValue>],
 ) -> Result<Arc<dyn Array>> {
     let mut inner_values = vec![Vec::with_capacity(param_values.len()); fields.len()];
 
-    for val in param_values.iter() {
+    for val in param_values {
         match val {
             Some(DynValue::Struct(inner_vals)) => {
                 if inner_values.len() != inner_vals.len() {
@@ -489,11 +485,14 @@ fn to_struct(
             }
             Some(val) => {
                 return Err(anyhow!(
-                    "found unexpected value. Expected: Struct, Found: {:?}",
-                    val
+                    "found unexpected value. Expected: Struct, Found: {val:?}"
                 ))
             }
-            None => inner_values.iter_mut().for_each(|v| v.push(None)),
+            None => {
+                for v in &mut inner_values {
+                    v.push(None);
+                }
+            }
         }
     }
 

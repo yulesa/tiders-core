@@ -27,17 +27,17 @@ pub struct Query {
 
 impl Query {
     pub fn add_request_and_include_fields(&mut self) -> Result<()> {
-        for (table_name, selections) in self.selection.iter() {
-            for selection in selections.iter() {
+        for (table_name, selections) in &*self.selection {
+            for selection in selections {
                 for col_name in selection.filters.keys() {
                     let table_fields = self
                         .fields
                         .get_mut(table_name)
-                        .with_context(|| format!("get fields for table {}", table_name))?;
+                        .with_context(|| format!("get fields for table {table_name}"))?;
                     table_fields.push(col_name.to_owned());
                 }
 
-                for include in selection.include.iter() {
+                for include in &selection.include {
                     let other_table_fields = self
                         .fields
                         .get_mut(&include.other_table_name)
@@ -48,7 +48,7 @@ impl Query {
                     let table_fields = self
                         .fields
                         .get_mut(table_name)
-                        .with_context(|| format!("get fields for table {}", table_name))?;
+                        .with_context(|| format!("get fields for table {table_name}"))?;
                     table_fields.extend_from_slice(&include.field_names);
                 }
             }
@@ -107,7 +107,8 @@ impl Filter {
                 if let Some(nulls) = filter.nulls() {
                     if nulls.null_count() > 0 {
                         let nulls = BooleanArray::from(nulls.inner().clone());
-                        filter = compute::and(&filter, &nulls).unwrap();
+                        filter = compute::and(&filter, &nulls)
+                            .context("apply null mask to boolean filter")?;
                     }
                 }
 
@@ -156,43 +157,43 @@ impl Contains {
     fn ht_from_array(array: &dyn Array) -> Result<HashTable<usize>> {
         let ht = match *array.data_type() {
             DataType::UInt8 => {
-                let array = array.as_any().downcast_ref::<UInt8Array>().unwrap();
+                let array = array.as_any().downcast_ref::<UInt8Array>().context("downcast to UInt8Array failed")?;
                 Self::ht_from_primitive(array)
             }
             DataType::UInt16 => {
-                let array = array.as_any().downcast_ref::<UInt16Array>().unwrap();
+                let array = array.as_any().downcast_ref::<UInt16Array>().context("downcast to UInt16Array failed")?;
                 Self::ht_from_primitive(array)
             }
             DataType::UInt32 => {
-                let array = array.as_any().downcast_ref::<UInt32Array>().unwrap();
+                let array = array.as_any().downcast_ref::<UInt32Array>().context("downcast to UInt32Array failed")?;
                 Self::ht_from_primitive(array)
             }
             DataType::UInt64 => {
-                let array = array.as_any().downcast_ref::<UInt64Array>().unwrap();
+                let array = array.as_any().downcast_ref::<UInt64Array>().context("downcast to UInt64Array failed")?;
                 Self::ht_from_primitive(array)
             }
             DataType::Int8 => {
-                let array = array.as_any().downcast_ref::<Int8Array>().unwrap();
+                let array = array.as_any().downcast_ref::<Int8Array>().context("downcast to Int8Array failed")?;
                 Self::ht_from_primitive(array)
             }
             DataType::Int16 => {
-                let array = array.as_any().downcast_ref::<Int16Array>().unwrap();
+                let array = array.as_any().downcast_ref::<Int16Array>().context("downcast to Int16Array failed")?;
                 Self::ht_from_primitive(array)
             }
             DataType::Int32 => {
-                let array = array.as_any().downcast_ref::<Int32Array>().unwrap();
+                let array = array.as_any().downcast_ref::<Int32Array>().context("downcast to Int32Array failed")?;
                 Self::ht_from_primitive(array)
             }
             DataType::Int64 => {
-                let array = array.as_any().downcast_ref::<Int64Array>().unwrap();
+                let array = array.as_any().downcast_ref::<Int64Array>().context("downcast to Int64Array failed")?;
                 Self::ht_from_primitive(array)
             }
             DataType::Binary => {
-                let array = array.as_any().downcast_ref::<BinaryArray>().unwrap();
+                let array = array.as_any().downcast_ref::<BinaryArray>().context("downcast to BinaryArray failed")?;
                 Self::ht_from_bytes(array)
             }
             DataType::Utf8 => {
-                let array = array.as_any().downcast_ref::<StringArray>().unwrap();
+                let array = array.as_any().downcast_ref::<StringArray>().context("downcast to StringArray failed")?;
                 Self::ht_from_bytes(array)
             }
             _ => {
@@ -217,7 +218,7 @@ impl Contains {
             None
         };
 
-        Ok(Self { hash_table, array })
+        Ok(Self { array, hash_table })
     }
 
     fn contains(&self, arr: &dyn Array) -> Result<BooleanArray> {
@@ -228,57 +229,57 @@ impl Contains {
                 arr.data_type(),
             ));
         }
-        assert!(!self.array.is_nullable());
+        anyhow::ensure!(!self.array.is_nullable(), "filter array must not be nullable");
 
         let filter = match *arr.data_type() {
             DataType::UInt8 => {
-                let self_arr = self.array.as_any().downcast_ref::<UInt8Array>().unwrap();
-                let other_arr = arr.as_any().downcast_ref().unwrap();
+                let self_arr = self.array.as_any().downcast_ref::<UInt8Array>().context("downcast to UInt8Array failed")?;
+                let other_arr = arr.as_any().downcast_ref().context("downcast other to UInt8Array failed")?;
                 self.contains_primitive(self_arr, other_arr)
             }
             DataType::UInt16 => {
-                let self_arr = self.array.as_any().downcast_ref::<UInt16Array>().unwrap();
-                let other_arr = arr.as_any().downcast_ref().unwrap();
+                let self_arr = self.array.as_any().downcast_ref::<UInt16Array>().context("downcast to UInt16Array failed")?;
+                let other_arr = arr.as_any().downcast_ref().context("downcast other to UInt16Array failed")?;
                 self.contains_primitive(self_arr, other_arr)
             }
             DataType::UInt32 => {
-                let self_arr = self.array.as_any().downcast_ref::<UInt32Array>().unwrap();
-                let other_arr = arr.as_any().downcast_ref().unwrap();
+                let self_arr = self.array.as_any().downcast_ref::<UInt32Array>().context("downcast to UInt32Array failed")?;
+                let other_arr = arr.as_any().downcast_ref().context("downcast other to UInt32Array failed")?;
                 self.contains_primitive(self_arr, other_arr)
             }
             DataType::UInt64 => {
-                let self_arr = self.array.as_any().downcast_ref::<UInt64Array>().unwrap();
-                let other_arr = arr.as_any().downcast_ref().unwrap();
+                let self_arr = self.array.as_any().downcast_ref::<UInt64Array>().context("downcast to UInt64Array failed")?;
+                let other_arr = arr.as_any().downcast_ref().context("downcast other to UInt64Array failed")?;
                 self.contains_primitive(self_arr, other_arr)
             }
             DataType::Int8 => {
-                let self_arr = self.array.as_any().downcast_ref::<Int8Array>().unwrap();
-                let other_arr = arr.as_any().downcast_ref().unwrap();
+                let self_arr = self.array.as_any().downcast_ref::<Int8Array>().context("downcast to Int8Array failed")?;
+                let other_arr = arr.as_any().downcast_ref().context("downcast other to Int8Array failed")?;
                 self.contains_primitive(self_arr, other_arr)
             }
             DataType::Int16 => {
-                let self_arr = self.array.as_any().downcast_ref::<Int16Array>().unwrap();
-                let other_arr = arr.as_any().downcast_ref().unwrap();
+                let self_arr = self.array.as_any().downcast_ref::<Int16Array>().context("downcast to Int16Array failed")?;
+                let other_arr = arr.as_any().downcast_ref().context("downcast other to Int16Array failed")?;
                 self.contains_primitive(self_arr, other_arr)
             }
             DataType::Int32 => {
-                let self_arr = self.array.as_any().downcast_ref::<Int32Array>().unwrap();
-                let other_arr = arr.as_any().downcast_ref().unwrap();
+                let self_arr = self.array.as_any().downcast_ref::<Int32Array>().context("downcast to Int32Array failed")?;
+                let other_arr = arr.as_any().downcast_ref().context("downcast other to Int32Array failed")?;
                 self.contains_primitive(self_arr, other_arr)
             }
             DataType::Int64 => {
-                let self_arr = self.array.as_any().downcast_ref::<Int64Array>().unwrap();
-                let other_arr = arr.as_any().downcast_ref().unwrap();
+                let self_arr = self.array.as_any().downcast_ref::<Int64Array>().context("downcast to Int64Array failed")?;
+                let other_arr = arr.as_any().downcast_ref().context("downcast other to Int64Array failed")?;
                 self.contains_primitive(self_arr, other_arr)
             }
             DataType::Binary => {
-                let self_arr = self.array.as_any().downcast_ref::<BinaryArray>().unwrap();
-                let other_arr = arr.as_any().downcast_ref().unwrap();
+                let self_arr = self.array.as_any().downcast_ref::<BinaryArray>().context("downcast to BinaryArray failed")?;
+                let other_arr = arr.as_any().downcast_ref().context("downcast other to BinaryArray failed")?;
                 self.contains_bytes(self_arr, other_arr)
             }
             DataType::Utf8 => {
-                let self_arr = self.array.as_any().downcast_ref::<StringArray>().unwrap();
-                let other_arr = arr.as_any().downcast_ref().unwrap();
+                let self_arr = self.array.as_any().downcast_ref::<StringArray>().context("downcast to StringArray failed")?;
+                let other_arr = arr.as_any().downcast_ref().context("downcast other to StringArray failed")?;
                 self.contains_bytes(self_arr, other_arr)
             }
             _ => {
@@ -291,7 +292,8 @@ impl Contains {
         if let Some(nulls) = arr.nulls() {
             if nulls.null_count() > 0 {
                 let nulls = BooleanArray::from(nulls.inner().clone());
-                filter = compute::and(&filter, &nulls).unwrap();
+                filter = compute::and(&filter, &nulls)
+                    .context("apply null mask to contains filter")?;
             }
         }
 
@@ -308,7 +310,7 @@ impl Contains {
         if let Some(ht) = self.hash_table.as_ref() {
             let hash_one = |v: &T::Native| -> u64 { xxh3_64(v.to_byte_slice()) };
 
-            for v in other_arr.values().iter() {
+            for v in other_arr.values() {
                 let c = ht
                     .find(hash_one(v), |idx| unsafe {
                         self_arr.values().get_unchecked(*idx) == v
@@ -317,7 +319,7 @@ impl Contains {
                 filter.append_value(c);
             }
         } else {
-            for v in other_arr.values().iter() {
+            for v in other_arr.values() {
                 filter.append_value(self_arr.values().iter().any(|x| x == v));
             }
         }
@@ -374,18 +376,18 @@ impl StartsWith {
                 arr.data_type(),
             ));
         }
-        assert!(!self.array.is_nullable());
+        anyhow::ensure!(!self.array.is_nullable(), "filter array must not be nullable");
 
         let mut filter = match *arr.data_type() {
             DataType::Binary => {
-                let self_arr = self.array.as_any().downcast_ref::<BinaryArray>().unwrap();
-                let other_arr = arr.as_any().downcast_ref().unwrap();
-                self.starts_with_bytes(self_arr, other_arr)
+                let self_arr = self.array.as_any().downcast_ref::<BinaryArray>().context("downcast to BinaryArray failed")?;
+                let other_arr = arr.as_any().downcast_ref().context("downcast other to BinaryArray failed")?;
+                Self::starts_with_bytes(self_arr, other_arr)
             }
             DataType::Utf8 => {
-                let self_arr = self.array.as_any().downcast_ref::<StringArray>().unwrap();
-                let other_arr = arr.as_any().downcast_ref().unwrap();
-                self.starts_with_bytes(self_arr, other_arr)
+                let self_arr = self.array.as_any().downcast_ref::<StringArray>().context("downcast to StringArray failed")?;
+                let other_arr = arr.as_any().downcast_ref().context("downcast other to StringArray failed")?;
+                Self::starts_with_bytes(self_arr, other_arr)
             }
             _ => {
                 return Err(anyhow!("unsupported data type: {}", arr.data_type()));
@@ -395,7 +397,8 @@ impl StartsWith {
         if let Some(nulls) = arr.nulls() {
             if nulls.null_count() > 0 {
                 let nulls = BooleanArray::from(nulls.inner().clone());
-                filter = compute::and(&filter, &nulls).unwrap();
+                filter = compute::and(&filter, &nulls)
+                    .context("apply null mask to starts_with filter")?;
             }
         }
 
@@ -403,7 +406,6 @@ impl StartsWith {
     }
 
     fn starts_with_bytes<T: ByteArrayType<Offset = i32>>(
-        &self,
         self_arr: &GenericByteArray<T>,
         other_arr: &GenericByteArray<T>,
     ) -> BooleanArray {
@@ -427,6 +429,7 @@ impl StartsWith {
 
 // Taken from arrow-rs
 // https://docs.rs/arrow-array/54.2.1/src/arrow_array/array/byte_array.rs.html#278
+#[expect(clippy::unwrap_used, reason = "i32 offsets always fit in isize/usize")]
 unsafe fn byte_array_get_unchecked<T: ByteArrayType<Offset = i32>>(
     arr: &GenericByteArray<T>,
     i: usize,
@@ -461,7 +464,7 @@ pub fn run_query(
                 .enumerate()
                 .map(|(i, selection)| {
                     run_table_selection(data, table_name, selection).with_context(|| {
-                        format!("run table selection no:{} for table {}", i, table_name)
+                        format!("run table selection no:{i} for table {table_name}")
                     })
                 })
                 .collect::<Result<Vec<_>>>()
@@ -474,17 +477,14 @@ pub fn run_query(
         .filter_map(|(table_name, table_data)| {
             let mut combined_filter: Option<BooleanArray> = None;
 
-            for f in filters.iter() {
-                for f in f.iter() {
-                    let filter = match f.get(table_name) {
-                        Some(f) => f,
-                        None => continue,
-                    };
+            for f in &filters {
+                for f in f {
+                    let Some(filter) = f.get(table_name) else { continue };
 
                     match combined_filter.as_ref() {
                         Some(e) => {
                             let f = compute::or(e, filter)
-                                .with_context(|| format!("combine filters for {}", table_name));
+                                .with_context(|| format!("combine filters for {table_name}"));
                             let f = match f {
                                 Ok(v) => v,
                                 Err(err) => return Some(Err(err)),
@@ -498,10 +498,7 @@ pub fn run_query(
                 }
             }
 
-            let combined_filter = match combined_filter {
-                Some(f) => f,
-                None => return None,
-            };
+            let combined_filter = combined_filter?;
 
             let table_data = compute::filter_record_batch(table_data, &combined_filter)
                 .context("filter record batch");
@@ -521,10 +518,10 @@ pub fn select_fields(
 ) -> Result<BTreeMap<TableName, RecordBatch>> {
     let mut out = BTreeMap::new();
 
-    for (table_name, field_names) in fields.iter() {
+    for (table_name, field_names) in fields {
         let table_data = data
             .get(table_name)
-            .with_context(|| format!("get data for table {}", table_name))?;
+            .with_context(|| format!("get data for table {table_name}"))?;
 
         let indices = table_data
             .schema_ref()
@@ -537,7 +534,7 @@ pub fn select_fields(
 
         let table_data = table_data
             .project(&indices)
-            .with_context(|| format!("project table {}", table_name))?;
+            .with_context(|| format!("project table {table_name}"))?;
         out.insert(table_name.to_owned(), table_data);
     }
 
@@ -553,20 +550,20 @@ fn run_table_selection(
 
     let table_data = data.get(table_name).context("get table data")?;
     let mut combined_filter = None;
-    for (field_name, filter) in selection.filters.iter() {
+    for (field_name, filter) in &selection.filters {
         let col = table_data
             .column_by_name(field_name)
-            .with_context(|| format!("get field {}", field_name))?;
+            .with_context(|| format!("get field {field_name}"))?;
 
         let f = filter
             .check(&col)
-            .with_context(|| format!("check filter for column {}", field_name))?;
+            .with_context(|| format!("check filter for column {field_name}"))?;
 
         match combined_filter {
             Some(cf) => {
                 combined_filter = Some(
                     compute::and(&cf, &f)
-                        .with_context(|| format!("combine filter for column {}", field_name))?,
+                        .with_context(|| format!("combine filter for column {field_name}"))?,
                 );
             }
             None => {
@@ -655,7 +652,7 @@ fn columns_to_binary_array(
             let f = table_data
                 .schema_ref()
                 .field_with_name(field_name)
-                .with_context(|| format!("get field {} from schema", field_name))?;
+                .with_context(|| format!("get field {field_name} from schema"))?;
             Ok(SortField::new(f.data_type().clone()))
         })
         .collect::<Result<Vec<_>>>()?;
@@ -666,7 +663,7 @@ fn columns_to_binary_array(
         .map(|field_name| {
             let c = table_data
                 .column_by_name(field_name)
-                .with_context(|| format!("get data for column {}", field_name))?;
+                .with_context(|| format!("get data for column {field_name}"))?;
             let c = Arc::clone(c);
             Ok(c)
         })

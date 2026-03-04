@@ -3,14 +3,14 @@ use anyhow::{anyhow, Context, Result};
 use tiders_rpc_client::{Client, ClientConfig};
 use futures_lite::StreamExt;
 
-pub fn start_stream(provider_config: ProviderConfig, query: Query) -> Result<DataStream> {
+pub fn start_stream(provider_config: &ProviderConfig, query: Query) -> Result<DataStream> {
     let evm_query = match query {
         Query::Evm(q) => q,
         Query::Svm(_) => return Err(anyhow!("RPC provider does not support SVM queries")),
     };
 
     let rpc_query = map_query(&evm_query);
-    let client_config = map_client_config(&provider_config)?;
+    let client_config = map_client_config(provider_config)?;
 
     let client = Client::new(client_config)?;
     let stream = client
@@ -33,10 +33,10 @@ fn map_client_config(cfg: &ProviderConfig) -> Result<ClientConfig> {
 
     let mut client_config = ClientConfig::new(url);
 
-    client_config.bearer_token = cfg.bearer_token.clone();
+    client_config.bearer_token.clone_from(&cfg.bearer_token);
 
     if let Some(v) = cfg.max_num_retries {
-        client_config.max_num_retries = v as u32;
+        client_config.max_num_retries = u32::try_from(v).context("max_num_retries exceeds u32 range")?;
     }
     if let Some(v) = cfg.retry_backoff_ms {
         client_config.retry_backoff_ms = v;
@@ -290,7 +290,7 @@ mod tests {
             ..Default::default()
         });
 
-        let mut stream = start_stream(rpc_config("http://localhost:8545"), query).unwrap();
+        let mut stream = start_stream(&rpc_config("http://localhost:8545"), query).unwrap();
         let data = stream.next().await.unwrap().unwrap();
 
         for batch in data.values() {
@@ -301,12 +301,12 @@ mod tests {
     #[test]
     fn config_mapping_and_error_paths() {
         // missing url → error
-        let no_url_err = start_stream(ProviderConfig::new(ProviderKind::Rpc), Query::Evm(evm::Query::default()))
+        let no_url_err = start_stream(&ProviderConfig::new(ProviderKind::Rpc), Query::Evm(evm::Query::default()))
             .err().unwrap();
         assert!(no_url_err.to_string().contains("url"));
 
         // SVM query → error
-        let svm_err = start_stream(rpc_config("http://localhost:8545"), Query::Svm(crate::svm::Query::default()))
+        let svm_err = start_stream(&rpc_config("http://localhost:8545"), Query::Svm(crate::svm::Query::default()))
             .err().unwrap();
         assert!(svm_err.to_string().contains("SVM"));
 

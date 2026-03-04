@@ -67,7 +67,7 @@ fn extract_data<const N: usize>(ob: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyRe
             }
             let out: [u8; N] = out
                 .try_into()
-                .map_err(|e| anyhow!("failed to convert to array: {:?}", e))?;
+                .map_err(|e| anyhow!("failed to convert to array: {e:?}"))?;
             Ok(out)
         }
         "bytes" => {
@@ -77,17 +77,18 @@ fn extract_data<const N: usize>(ob: &pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyRe
             }
             let out: [u8; N] = out
                 .try_into()
-                .map_err(|e| anyhow!("failed to convert to array: {:?}", e))?;
+                .map_err(|e| anyhow!("failed to convert to array: {e:?}"))?;
             Ok(out)
         }
-        _ => Err(anyhow!("unknown type: {}", ob_type).into()),
+        _ => Err(anyhow!("unknown type: {ob_type}").into()),
     }
 }
 
+#[cfg(feature = "pyo3")]
 fn hex_to_bytes(hex_string: &str) -> Result<Vec<u8>> {
     let hex_string = hex_string.strip_prefix("0x").unwrap_or(hex_string);
     let hex_string = if hex_string.len() % 2 == 1 {
-        format!("0{}", hex_string)
+        format!("0{hex_string}", )
     } else {
         hex_string.to_string()
     };
@@ -127,7 +128,7 @@ impl<'py> pyo3::FromPyObject<'py> for Data {
                 let out: Vec<u8> = ob.extract()?;
                 Ok(Self(out))
             }
-            _ => Err(anyhow!("unknown type: {}", ob_type).into()),
+            _ => Err(anyhow!("unknown type: {ob_type}").into()),
         }
     }
 }
@@ -174,6 +175,7 @@ impl<'py> pyo3::FromPyObject<'py> for D8 {
 
 #[derive(Default, Debug, Clone)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
+#[expect(clippy::struct_excessive_bools, reason = "fields selection flags")]
 pub struct InstructionRequest {
     pub program_id: Vec<Address>,
     pub discriminator: Vec<Data>,
@@ -240,7 +242,7 @@ impl LogKind {
             "log" => Ok(Self::Log),
             "data" => Ok(Self::Data),
             "other" => Ok(Self::Other),
-            _ => Err(anyhow!("unknown log kind: {}", s)),
+            _ => Err(anyhow!("unknown log kind: {s}")),
         }
     }
 }
@@ -317,6 +319,7 @@ impl Fields {
 #[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(default)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
+#[expect(clippy::struct_excessive_bools, reason = "fields selection flags")]
 pub struct InstructionFields {
     pub block_slot: bool,
     pub block_hash: bool,
@@ -380,6 +383,7 @@ impl InstructionFields {
 #[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(default)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
+#[expect(clippy::struct_excessive_bools, reason = "fields selection flags")]
 pub struct TransactionFields {
     pub block_slot: bool,
     pub block_hash: bool,
@@ -431,6 +435,7 @@ impl TransactionFields {
 #[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(default)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
+#[expect(clippy::struct_excessive_bools, reason = "fields selection flags")]
 pub struct LogFields {
     pub block_slot: bool,
     pub block_hash: bool,
@@ -460,6 +465,7 @@ impl LogFields {
 #[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(default)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
+#[expect(clippy::struct_excessive_bools, reason = "fields selection flags")]
 pub struct BalanceFields {
     pub block_slot: bool,
     pub block_hash: bool,
@@ -485,6 +491,7 @@ impl BalanceFields {
 #[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(default)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
+#[expect(clippy::struct_excessive_bools, reason = "fields selection flags")]
 pub struct TokenBalanceFields {
     pub block_slot: bool,
     pub block_hash: bool,
@@ -526,6 +533,7 @@ impl TokenBalanceFields {
 #[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(default)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
+#[expect(clippy::struct_excessive_bools, reason = "fields selection flags")]
 pub struct RewardFields {
     pub block_slot: bool,
     pub block_hash: bool,
@@ -553,6 +561,7 @@ impl RewardFields {
 #[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(default)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
+#[expect(clippy::struct_excessive_bools, reason = "fields selection flags")]
 pub struct BlockFields {
     pub slot: bool,
     pub hash: bool,

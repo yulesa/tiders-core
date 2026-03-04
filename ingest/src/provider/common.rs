@@ -143,11 +143,7 @@ fn evm_tx_selection_to_generic(selection: &evm::TransactionRequest) -> TableSele
     let filters = filters
         .into_iter()
         .filter_map(|(name, arr)| {
-            if arr.is_empty() {
-                None
-            } else {
-                Some((name.to_owned(), Filter::contains(arr).unwrap()))
-            }
+            Filter::contains(arr).ok().map(|filter| (name.to_owned(), filter))
         })
         .collect();
 
@@ -220,11 +216,7 @@ fn evm_trace_selection_to_generic(selection: &evm::TraceRequest) -> TableSelecti
     let filters = filters
         .into_iter()
         .filter_map(|(name, arr)| {
-            if arr.is_empty() {
-                None
-            } else {
-                Some((name.to_owned(), Filter::contains(arr).unwrap()))
-            }
+            Filter::contains(arr).ok().map(|filter| (name.to_owned(), filter))
         })
         .collect();
 
@@ -302,11 +294,7 @@ fn evm_log_selection_to_generic(selection: &evm::LogRequest) -> TableSelection {
     let filters = filters
         .into_iter()
         .filter_map(|(name, arr)| {
-            if arr.is_empty() {
-                None
-            } else {
-                Some((name.to_owned(), Filter::contains(arr).unwrap()))
-            }
+            Filter::contains(arr).ok().map(|filter| (name.to_owned(), filter))
         })
         .collect();
 
@@ -544,14 +532,15 @@ fn svm_instruction_selection_to_generic(selection: &svm::InstructionRequest) -> 
 
     let mut filters: BTreeMap<String, Filter> = filters
         .into_iter()
-        .filter_map(|(name, arr)| {
-            if arr.is_empty() {
-                None
-            } else if name == "data" {
-                Some((name.to_owned(), Filter::starts_with(arr).unwrap()))
-            } else {
-                Some((name.to_owned(), Filter::contains(arr).unwrap()))
-            }
+        .filter_map(|(name, arr)| {if arr.is_empty() {
+            return None;
+        }
+        let filter_result = if name == "data" {
+            Filter::starts_with(arr)
+        } else {
+            Filter::contains(arr)
+        };
+        filter_result.ok().map(|f| (name.to_owned(), f))
         })
         .collect();
 
@@ -633,11 +622,7 @@ fn svm_transaction_selection_to_generic(selection: &svm::TransactionRequest) -> 
     let filters: BTreeMap<String, Filter> = filters
         .into_iter()
         .filter_map(|(name, arr)| {
-            if arr.is_empty() {
-                None
-            } else {
-                Some((name.to_owned(), Filter::contains(arr).unwrap()))
-            }
+            Filter::contains(arr).ok().map(|filter| (name.to_owned(), filter))
         })
         .collect();
 
@@ -648,7 +633,7 @@ fn svm_transaction_selection_to_generic(selection: &svm::TransactionRequest) -> 
             other_table_name: "logs".to_owned(),
             field_names: vec!["block_slot".to_owned(), "transaction_index".to_owned()],
             other_table_field_names: vec!["block_slot".to_owned(), "transaction_index".to_owned()],
-        })
+        });
     }
 
     if selection.include_instructions {
@@ -656,7 +641,7 @@ fn svm_transaction_selection_to_generic(selection: &svm::TransactionRequest) -> 
             other_table_name: "instructions".to_owned(),
             field_names: vec!["block_slot".to_owned(), "transaction_index".to_owned()],
             other_table_field_names: vec!["block_slot".to_owned(), "transaction_index".to_owned()],
-        })
+        });
     }
 
     if selection.include_blocks {
@@ -664,7 +649,7 @@ fn svm_transaction_selection_to_generic(selection: &svm::TransactionRequest) -> 
             other_table_name: "blocks".to_owned(),
             field_names: vec!["block_slot".to_owned()],
             other_table_field_names: vec!["slot".to_owned()],
-        })
+        });
     }
 
     TableSelection { filters, include }
@@ -675,7 +660,7 @@ fn svm_log_selection_to_generic(selection: &svm::LogRequest) -> TableSelection {
         selection.program_id.iter().map(|x| x.0.as_slice()),
     ));
     let kind = Arc::new(StringArray::from_iter_values(
-        selection.kind.iter().map(|x| x.as_str()),
+        selection.kind.iter().map(svm::LogKind::as_str),
     ));
 
     let filters: [(&str, Arc<dyn Array>); 2] = [("program_id", program_id), ("kind", kind)];
@@ -683,11 +668,7 @@ fn svm_log_selection_to_generic(selection: &svm::LogRequest) -> TableSelection {
     let filters: BTreeMap<String, Filter> = filters
         .into_iter()
         .filter_map(|(name, arr)| {
-            if arr.is_empty() {
-                None
-            } else {
-                Some((name.to_owned(), Filter::contains(arr).unwrap()))
-            }
+            Filter::contains(arr).ok().map(|filter| (name.to_owned(), filter))
         })
         .collect();
 
@@ -698,7 +679,7 @@ fn svm_log_selection_to_generic(selection: &svm::LogRequest) -> TableSelection {
             other_table_name: "transactions".to_owned(),
             field_names: vec!["block_slot".to_owned(), "transaction_index".to_owned()],
             other_table_field_names: vec!["block_slot".to_owned(), "transaction_index".to_owned()],
-        })
+        });
     }
 
     if selection.include_instructions {
@@ -706,7 +687,7 @@ fn svm_log_selection_to_generic(selection: &svm::LogRequest) -> TableSelection {
             other_table_name: "instructions".to_owned(),
             field_names: vec!["block_slot".to_owned(), "transaction_index".to_owned()],
             other_table_field_names: vec!["block_slot".to_owned(), "transaction_index".to_owned()],
-        })
+        });
     }
 
     if selection.include_blocks {
@@ -714,7 +695,7 @@ fn svm_log_selection_to_generic(selection: &svm::LogRequest) -> TableSelection {
             other_table_name: "blocks".to_owned(),
             field_names: vec!["block_slot".to_owned()],
             other_table_field_names: vec!["slot".to_owned()],
-        })
+        });
     }
 
     TableSelection { filters, include }
@@ -730,11 +711,7 @@ fn svm_balance_selection_to_generic(selection: &svm::BalanceRequest) -> TableSel
     let filters: BTreeMap<String, Filter> = filters
         .into_iter()
         .filter_map(|(name, arr)| {
-            if arr.is_empty() {
-                None
-            } else {
-                Some((name.to_owned(), Filter::contains(arr).unwrap()))
-            }
+            Filter::contains(arr).ok().map(|filter| (name.to_owned(), filter))
         })
         .collect();
 
@@ -745,7 +722,7 @@ fn svm_balance_selection_to_generic(selection: &svm::BalanceRequest) -> TableSel
             other_table_name: "transactions".to_owned(),
             field_names: vec!["block_slot".to_owned(), "transaction_index".to_owned()],
             other_table_field_names: vec!["block_slot".to_owned(), "transaction_index".to_owned()],
-        })
+        });
     }
 
     if selection.include_transaction_instructions {
@@ -753,7 +730,7 @@ fn svm_balance_selection_to_generic(selection: &svm::BalanceRequest) -> TableSel
             other_table_name: "instructions".to_owned(),
             field_names: vec!["block_slot".to_owned(), "transaction_index".to_owned()],
             other_table_field_names: vec!["block_slot".to_owned(), "transaction_index".to_owned()],
-        })
+        });
     }
 
     if selection.include_blocks {
@@ -761,7 +738,7 @@ fn svm_balance_selection_to_generic(selection: &svm::BalanceRequest) -> TableSel
             other_table_name: "blocks".to_owned(),
             field_names: vec!["block_slot".to_owned()],
             other_table_field_names: vec!["slot".to_owned()],
-        })
+        });
     }
 
     TableSelection { filters, include }
@@ -803,11 +780,7 @@ fn svm_token_balance_selection_to_generic(selection: &svm::TokenBalanceRequest) 
     let filters: BTreeMap<String, Filter> = filters
         .into_iter()
         .filter_map(|(name, arr)| {
-            if arr.is_empty() {
-                None
-            } else {
-                Some((name.to_owned(), Filter::contains(arr).unwrap()))
-            }
+            Filter::contains(arr).ok().map(|filter| (name.to_owned(), filter))
         })
         .collect();
 
@@ -818,7 +791,7 @@ fn svm_token_balance_selection_to_generic(selection: &svm::TokenBalanceRequest) 
             other_table_name: "transactions".to_owned(),
             field_names: vec!["block_slot".to_owned(), "transaction_index".to_owned()],
             other_table_field_names: vec!["block_slot".to_owned(), "transaction_index".to_owned()],
-        })
+        });
     }
 
     if selection.include_transaction_instructions {
@@ -826,7 +799,7 @@ fn svm_token_balance_selection_to_generic(selection: &svm::TokenBalanceRequest) 
             other_table_name: "instructions".to_owned(),
             field_names: vec!["block_slot".to_owned(), "transaction_index".to_owned()],
             other_table_field_names: vec!["block_slot".to_owned(), "transaction_index".to_owned()],
-        })
+        });
     }
 
     if selection.include_blocks {
@@ -834,7 +807,7 @@ fn svm_token_balance_selection_to_generic(selection: &svm::TokenBalanceRequest) 
             other_table_name: "blocks".to_owned(),
             field_names: vec!["block_slot".to_owned()],
             other_table_field_names: vec!["slot".to_owned()],
-        })
+        });
     }
 
     TableSelection { filters, include }
@@ -850,11 +823,7 @@ fn svm_reward_selection_to_generic(selection: &svm::RewardRequest) -> TableSelec
     let filters: BTreeMap<String, Filter> = filters
         .into_iter()
         .filter_map(|(name, arr)| {
-            if arr.is_empty() {
-                None
-            } else {
-                Some((name.to_owned(), Filter::contains(arr).unwrap()))
-            }
+            Filter::contains(arr).ok().map(|filter| (name.to_owned(), filter))
         })
         .collect();
 
@@ -865,19 +834,20 @@ fn svm_reward_selection_to_generic(selection: &svm::RewardRequest) -> TableSelec
             other_table_name: "blocks".to_owned(),
             field_names: vec!["block_slot".to_owned()],
             other_table_field_names: vec!["slot".to_owned()],
-        })
+        });
     }
 
     TableSelection { filters, include }
 }
 
+#[expect(clippy::unwrap_used, reason = "field_selection is a plain struct of bools, serialization and object/bool access are infallible")]
 pub fn field_selection_to_set<S: Serialize>(field_selection: &S) -> BTreeSet<String> {
     let json = serde_json::to_value(field_selection).unwrap();
     let json = json.as_object().unwrap();
 
     let mut output = BTreeSet::new();
 
-    for (key, value) in json.iter() {
+    for (key, value) in json {
         if value.as_bool().unwrap() {
             output.insert(key.clone());
         }

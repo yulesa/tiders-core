@@ -16,6 +16,7 @@ mod ingest;
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
+#[expect(clippy::unwrap_used, reason = "Runtime creation is essential and only happens once at startup")]
 static TOKIO_RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -408,7 +409,7 @@ fn svm_decode_instructions(
 
     let instruction_signature = signature.extract::<InstructionSignature>()?;
     let batch = baselib::svm_decode::decode_instructions_batch(
-        instruction_signature,
+        &instruction_signature,
         &batch,
         allow_decode_fail,
     )
@@ -428,7 +429,7 @@ fn svm_decode_logs(
 
     let log_signature = signature.extract::<LogSignature>()?;
 
-    let batch = baselib::svm_decode::decode_logs_batch(log_signature, &batch, allow_decode_fail)
+    let batch = baselib::svm_decode::decode_logs_batch(&log_signature, &batch, allow_decode_fail)
         .context("decode log batch")?;
 
     Ok(batch.to_pyarrow(py).context("map result back to pyarrow")?)

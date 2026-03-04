@@ -7,6 +7,7 @@ use arrow::array::{builder, new_null_array, Array, BinaryArray, BinaryBuilder, R
 use arrow::datatypes::DataType;
 use tiders_evm_schema::AccessListBuilder;
 use hypersync_client::format::AccessList;
+use hypersync_client::StreamConfig;
 use hypersync_client::net_types::{self as hypersync_nt, JoinMode};
 use std::sync::Arc;
 use std::{collections::BTreeMap, num::NonZeroU64, time::Duration};
@@ -16,7 +17,7 @@ pub fn query_to_hypersync(query: &evm::Query) -> Result<hypersync_nt::Query> {
     let mut need_join_default = false;
     let mut need_join_all = false;
 
-    for lg in query.logs.iter() {
+    for lg in &query.logs {
         if lg.include_transactions || lg.include_blocks || lg.include_transaction_traces {
             need_join_default = true;
         }
@@ -26,7 +27,7 @@ pub fn query_to_hypersync(query: &evm::Query) -> Result<hypersync_nt::Query> {
         }
     }
 
-    for tx in query.transactions.iter() {
+    for tx in &query.transactions {
         if tx.include_traces || tx.include_blocks {
             need_join_default = true;
         }
@@ -36,7 +37,7 @@ pub fn query_to_hypersync(query: &evm::Query) -> Result<hypersync_nt::Query> {
         }
     }
 
-    for trc in query.traces.iter() {
+    for trc in &query.traces {
         if trc.include_blocks {
             need_join_default = true;
         }
@@ -64,23 +65,21 @@ pub fn query_to_hypersync(query: &evm::Query) -> Result<hypersync_nt::Query> {
         logs: query.logs.iter().map(|lg| Ok(hypersync_nt::LogSelection {
             address: lg.address.iter().map(|addr| addr.0.into()).collect::<Vec<_>>(),
             address_filter: None,
-            topics: vec![
+            topics: [
                 lg.topic0.iter().map(|x| x.0.into()).collect(),
                 lg.topic1.iter().map(|x| x.0.into()).collect(),
                 lg.topic2.iter().map(|x| x.0.into()).collect(),
                 lg.topic3.iter().map(|x| x.0.into()).collect(),
-            ].as_slice().try_into().unwrap(),
+            ].into(),
         })).collect::<Result<_>>()?,
         transactions: query.transactions.iter().map(|tx| Ok(hypersync_nt::TransactionSelection {
             from: tx.from_.iter().map(|x| x.0.into()).collect(),
             to: tx.to.iter().map(|x| x.0.into()).collect(),
             sighash: tx.sighash.iter().map(|x| x.0.into()).collect(),
-            status: if tx.status.len() == 1 {
-                Some(*tx.status.first().unwrap())
-            } else if tx.status.is_empty() {
-                None
-            } else {
-                return Err(anyhow!("failed to convert status query to hypersync. Only empty or single element arrays are supported."))
+            status: match tx.status.as_slice() {
+                [single_status] => Some(*single_status),
+                [] => None,
+                _ => return Err(anyhow!("failed to convert status query to hypersync. Only empty or single element arrays are supported.")),
             },
             kind: tx.type_.clone(),
             contract_address: tx.contract_deployment_address.iter().map(|x| x.0.into()).collect(),
@@ -156,7 +155,7 @@ pub async fn start_stream(cfg: ProviderConfig, query: crate::Query) -> Result<Da
 
             let mut receiver = client
                 .clone()
-                .stream_arrow(evm_query.clone(), Default::default())
+                .stream_arrow(evm_query.clone(), StreamConfig::default())
                 .await
                 .context("start hypersync stream")?;
 
@@ -318,12 +317,12 @@ fn map_hypersync_binary_array_to_u8(
     num_rows: usize,
 ) -> Result<Arc<dyn Array>> {
     let arr = map_hypersync_array(batch, name, num_rows, &DataType::Binary)?;
-    let arr = arr.as_any().downcast_ref::<BinaryArray>().unwrap();
+    let arr = arr.as_any().downcast_ref::<BinaryArray>().context("Internal error: map_hypersync_array expected {name} column to return a BinaryArray as requested")?;
     let arr = tiders_cast::u256_column_from_binary(arr)
-        .with_context(|| format!("parse u256 values in {} column", name))?;
+        .with_context(|| format!("parse u256 values in {name} column"))?;
     let arr: &dyn Array = &arr;
     let arr = arrow::compute::cast(arr, &DataType::UInt8)
-        .with_context(|| format!("cast u256 to u8 for column {}", name))?;
+        .with_context(|| format!("cast u256 to u8 for column {name}"))?;
     Ok(Arc::new(arr))
 }
 
@@ -333,9 +332,9 @@ fn map_hypersync_binary_array_to_decimal256(
     num_rows: usize,
 ) -> Result<Arc<dyn Array>> {
     let arr = map_hypersync_array(batch, name, num_rows, &DataType::Binary)?;
-    let arr = arr.as_any().downcast_ref::<BinaryArray>().unwrap();
+    let arr = arr.as_any().downcast_ref::<BinaryArray>().context("Internal error: map_hypersync_binary_array_to_decimal256 expected {name} column to return a BinaryArray as requested")?;
     let arr = tiders_cast::u256_column_from_binary(arr)
-        .with_context(|| format!("parse u256 values in {} column", name))?;
+        .with_context(|| format!("parse u256 values in {name} column"))?;
     Ok(Arc::new(arr))
 }
 
@@ -351,11 +350,11 @@ fn map_hypersync_u8_binary_array_to_boolean(
     let src = src
         .as_any()
         .downcast_ref::<BinaryArray>()
-        .with_context(|| format!("expected {} column to be binary type", name))?;
+        .with_context(|| format!("expected {name} column to be binary type"))?;
 
     let mut arr = builder::BooleanBuilder::with_capacity(src.len());
 
-    for v in src.iter() {
+    for v in src {
         match v {
             None => arr.append_null(),
             Some(v) => match v {
@@ -380,11 +379,11 @@ fn map_hypersync_binary_array_to_access_list_elem(
     num_rows: usize,
 ) -> Result<Arc<dyn Array>> {
     let arr = map_hypersync_array(batch, name, num_rows, &DataType::Binary)?;
-    let arr = arr.as_any().downcast_ref::<BinaryArray>().unwrap();
+    let arr = arr.as_any().downcast_ref::<BinaryArray>().context("Internal error: map_hypersync_binary_array_to_access_list_elem expected {name} column to return a BinaryArray as requested")?;
     let mut access_list_builder = AccessListBuilder::default();
 
     // Process each element in the array
-    for opt_value in arr.iter() {
+    for opt_value in arr {
         match opt_value {
             None => access_list_builder.0.append_null(),
             Some(bytes) => {
@@ -394,13 +393,13 @@ fn map_hypersync_binary_array_to_access_list_elem(
                 for item in access_list_wrapper {
                     access_list_items_builder
                         .field_builder::<builder::BinaryBuilder>(0)
-                        .unwrap()
+                        .context("AccessListBuilder field 0 is not BinaryBuilder")?
                         .append_option(item.address);
 
                     {
                         let b = access_list_items_builder
                             .field_builder::<builder::ListBuilder<builder::BinaryBuilder>>(1)
-                            .unwrap();
+                            .context("AccessListBuilder field 1 is not ListBuilder<BinaryBuilder>")?;
 
                         let v = item.storage_keys;
                         let mut keys = vec![];
@@ -431,9 +430,9 @@ fn map_hypersync_binary_array_to_list_hashes(
     num_rows: usize,
 ) -> Result<Arc<dyn Array>> {
     let arr = map_hypersync_array(batch, name, num_rows, &DataType::Binary)?;
-    let arr = arr.as_any().downcast_ref::<BinaryArray>().unwrap();
+    let arr = arr.as_any().downcast_ref::<BinaryArray>().context("Internal error: map_hypersync_binary_array_to_list_hashes expected {name} column to return a BinaryArray as requested")?;
     let mut hashes_list_builder = ListBuilder::<BinaryBuilder>::new(BinaryBuilder::default());
-    for opt_value in arr.iter() {
+    for opt_value in arr {
         match opt_value {
             None => hashes_list_builder.append_null(),
             Some(bytes) => {
@@ -462,8 +461,8 @@ fn map_blocks(blocks: &[hypersync_client::ArrowBatch]) -> Result<RecordBatch> {
 
     let schema = Arc::new(tiders_evm_schema::blocks_schema());
 
-    for batch in blocks.iter() {
-        let batch = polars_arrow_to_arrow_rs(batch);
+    for batch in blocks {
+        let batch = polars_arrow_to_arrow_rs(batch)?;
         let num_rows = batch.num_rows();
         let batch = RecordBatch::try_new(
             schema.clone(),
@@ -486,7 +485,7 @@ fn map_blocks(blocks: &[hypersync_client::ArrowBatch]) -> Result<RecordBatch> {
                 map_hypersync_binary_array_to_decimal256(&batch, "gas_used", num_rows)?,
                 map_hypersync_binary_array_to_decimal256(&batch, "timestamp", num_rows)?,
                 new_null_array(
-                    schema.column_with_name("uncles").unwrap().1.data_type(),
+                    schema.column_with_name("uncles").context("blocks schema missing 'uncles' field")?.1.data_type(),
                     num_rows,
                 ),
                 map_hypersync_binary_array_to_decimal256(&batch, "base_fee_per_gas", num_rows)?,
@@ -502,7 +501,7 @@ fn map_blocks(blocks: &[hypersync_client::ArrowBatch]) -> Result<RecordBatch> {
                 new_null_array(
                     schema
                         .column_with_name("withdrawals")
-                        .unwrap()
+                        .context("blocks schema missing 'withdrawals' field")?
                         .1
                         .data_type(),
                     num_rows,
@@ -525,8 +524,8 @@ fn map_transactions(transactions: &[hypersync_client::ArrowBatch]) -> Result<Rec
 
     let schema = Arc::new(tiders_evm_schema::transactions_schema());
 
-    for batch in transactions.iter() {
-        let batch = polars_arrow_to_arrow_rs(batch);
+    for batch in transactions {
+        let batch = polars_arrow_to_arrow_rs(batch)?;
         let num_rows = batch.num_rows();
         let batch = RecordBatch::try_new(
             schema.clone(),
@@ -614,8 +613,8 @@ fn map_logs(logs: &[hypersync_client::ArrowBatch]) -> Result<RecordBatch> {
 
     let schema = Arc::new(tiders_evm_schema::logs_schema());
 
-    for batch in logs.iter() {
-        let batch = polars_arrow_to_arrow_rs(batch);
+    for batch in logs {
+        let batch = polars_arrow_to_arrow_rs(batch)?;
         let num_rows = batch.num_rows();
         let batch = RecordBatch::try_new(
             schema.clone(),
@@ -646,8 +645,8 @@ fn map_traces(traces: &[hypersync_client::ArrowBatch]) -> Result<RecordBatch> {
 
     let schema = Arc::new(tiders_evm_schema::traces_schema());
 
-    for batch in traces.iter() {
-        let batch = polars_arrow_to_arrow_rs(batch);
+    for batch in traces {
+        let batch = polars_arrow_to_arrow_rs(batch)?;
         let num_rows = batch.num_rows();
         let batch = RecordBatch::try_new(
             schema.clone(),
@@ -671,7 +670,7 @@ fn map_traces(traces: &[hypersync_client::ArrowBatch]) -> Result<RecordBatch> {
                 new_null_array(
                     schema
                         .column_with_name("trace_address")
-                        .unwrap()
+                        .context("traces schema missing 'trace_address' field")?
                         .1
                         .data_type(),
                     num_rows,
@@ -695,7 +694,7 @@ fn map_traces(traces: &[hypersync_client::ArrowBatch]) -> Result<RecordBatch> {
 
 fn polars_arrow_to_arrow_rs(
     batch: &hypersync_client::ArrowBatch,
-) -> arrow::record_batch::RecordBatch {
+) -> Result<arrow::record_batch::RecordBatch> {
     let data_type = polars_arrow::datatypes::ArrowDataType::Struct(batch.schema.fields.clone());
     let arr = polars_arrow::array::StructArray::new(
         data_type.clone(),
@@ -711,11 +710,11 @@ fn polars_arrow_to_arrow_rs(
         ))
     };
 
-    let mut arr_data = unsafe { arrow::ffi::from_ffi(arr, &schema).unwrap() };
+    let mut arr_data = unsafe { arrow::ffi::from_ffi(arr, &schema).context("polars arrow FFI conversion failed")? };
 
     arr_data.align_buffers();
 
     let arr = arrow::array::StructArray::from(arr_data);
 
-    arrow::record_batch::RecordBatch::from(arr)
+    Ok(arrow::record_batch::RecordBatch::from(arr))
 }

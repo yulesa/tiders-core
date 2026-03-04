@@ -189,6 +189,7 @@ pub struct BlocksBuilder {
 }
 
 impl BlocksBuilder {
+    #[expect(clippy::unwrap_used, reason = "schema is a compile-time constant")]
     pub fn finish(mut self) -> RecordBatch {
         RecordBatch::try_new(
             Arc::new(blocks_schema()),
@@ -217,6 +218,7 @@ pub struct RewardsBuilder {
 }
 
 impl RewardsBuilder {
+    #[expect(clippy::unwrap_used, reason = "schema is a compile-time constant")]
     pub fn finish(mut self) -> RecordBatch {
         RecordBatch::try_new(
             Arc::new(rewards_schema()),
@@ -253,6 +255,7 @@ pub struct TokenBalancesBuilder {
 }
 
 impl TokenBalancesBuilder {
+    #[expect(clippy::unwrap_used, reason = "schema is a compile-time constant")]
     pub fn finish(mut self) -> RecordBatch {
         RecordBatch::try_new(
             Arc::new(token_balances_schema()),
@@ -288,6 +291,7 @@ pub struct BalancesBuilder {
 }
 
 impl BalancesBuilder {
+    #[expect(clippy::unwrap_used, reason = "schema is a compile-time constant")]
     pub fn finish(mut self) -> RecordBatch {
         RecordBatch::try_new(
             Arc::new(balances_schema()),
@@ -317,6 +321,7 @@ pub struct LogsBuilder {
 }
 
 impl LogsBuilder {
+    #[expect(clippy::unwrap_used, reason = "schema is a compile-time constant")]
     pub fn finish(mut self) -> RecordBatch {
         RecordBatch::try_new(
             Arc::new(logs_schema()),
@@ -377,6 +382,7 @@ impl Default for AddressTableLookupsBuilder {
 }
 
 impl TransactionsBuilder {
+    #[expect(clippy::unwrap_used, reason = "schema is a compile-time constant")]
     pub fn finish(mut self) -> RecordBatch {
         RecordBatch::try_new(
             Arc::new(transactions_schema()),
@@ -436,6 +442,7 @@ pub struct InstructionsBuilder {
 }
 
 impl InstructionsBuilder {
+    #[expect(clippy::unwrap_used, reason = "schema is a compile-time constant")]
     pub fn finish(mut self) -> RecordBatch {
         RecordBatch::try_new(
             Arc::new(instructions_schema()),

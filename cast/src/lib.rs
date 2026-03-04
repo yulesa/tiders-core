@@ -89,7 +89,7 @@ pub fn cast<S: AsRef<str>>(
 pub fn cast_schema<S: AsRef<str>>(map: &[(S, DataType)], schema: &Schema) -> Result<Schema> {
     let mut fields = schema.fields().to_vec();
 
-    for f in fields.iter_mut() {
+    for f in &mut fields {
         let cast_target = map.iter().find(|x| x.0.as_ref() == f.name());
 
         if let Some(tgt) = cast_target {
@@ -178,7 +178,7 @@ pub fn cast_schema_by_type(
 ) -> Result<Schema> {
     let mut fields = schema.fields().to_vec();
 
-    for f in fields.iter_mut() {
+    for f in &mut fields {
         if f.data_type() == from_type {
             *f = Arc::new(Field::new(f.name(), to_type.clone(), f.is_nullable()));
         }
@@ -187,11 +187,12 @@ pub fn cast_schema_by_type(
     Ok(Schema::new(fields))
 }
 
+#[expect(clippy::unwrap_used, reason = "downcast is guaranteed by prior data type check")]
 pub fn base58_encode(data: &RecordBatch) -> Result<RecordBatch> {
     let schema = schema_binary_to_string(data.schema_ref());
     let mut columns = Vec::<Arc<dyn Array>>::with_capacity(data.columns().len());
 
-    for col in data.columns().iter() {
+    for col in data.columns() {
         if col.data_type() == &DataType::Binary {
             columns.push(Arc::new(base58_encode_column(
                 col.as_any().downcast_ref::<BinaryArray>().unwrap(),
@@ -216,7 +217,7 @@ pub fn base58_encode_column<I: OffsetSizeTrait>(
         (col.value_data().len() + 2) * 2,
     );
 
-    for v in col.iter() {
+    for v in col {
         match v {
             Some(v) => {
                 let v = bs58::encode(v)
@@ -231,11 +232,12 @@ pub fn base58_encode_column<I: OffsetSizeTrait>(
     arr.finish()
 }
 
+#[expect(clippy::unwrap_used, reason = "downcast is guaranteed by prior data type check")]
 pub fn hex_encode<const PREFIXED: bool>(data: &RecordBatch) -> Result<RecordBatch> {
     let schema = schema_binary_to_string(data.schema_ref());
     let mut columns = Vec::<Arc<dyn Array>>::with_capacity(data.columns().len());
 
-    for col in data.columns().iter() {
+    for col in data.columns() {
         if col.data_type() == &DataType::Binary {
             columns.push(Arc::new(hex_encode_column::<PREFIXED, i32>(
                 col.as_any().downcast_ref::<BinaryArray>().unwrap(),
@@ -260,7 +262,7 @@ pub fn hex_encode_column<const PREFIXED: bool, I: OffsetSizeTrait>(
         (col.value_data().len() + 2) * 2,
     );
 
-    for v in col.iter() {
+    for v in col {
         match v {
             Some(v) => {
                 // TODO: avoid allocation here and use a scratch buffer to encode hex into or write to arrow buffer
@@ -286,7 +288,7 @@ pub fn hex_encode_column<const PREFIXED: bool, I: OffsetSizeTrait>(
 pub fn schema_binary_to_string(schema: &Schema) -> Schema {
     let mut fields = Vec::<Arc<Field>>::with_capacity(schema.fields().len());
 
-    for f in schema.fields().iter() {
+    for f in schema.fields() {
         if f.data_type() == &DataType::Binary {
             fields.push(Arc::new(Field::new(
                 f.name().clone(),
@@ -313,7 +315,7 @@ pub fn schema_binary_to_string(schema: &Schema) -> Schema {
 pub fn schema_decimal256_to_binary(schema: &Schema) -> Schema {
     let mut fields = Vec::<Arc<Field>>::with_capacity(schema.fields().len());
 
-    for f in schema.fields().iter() {
+    for f in schema.fields() {
         if f.data_type() == &DataType::Decimal256(76, 0) {
             fields.push(Arc::new(Field::new(
                 f.name().clone(),
@@ -334,7 +336,7 @@ pub fn base58_decode_column<I: OffsetSizeTrait>(
     let mut arr =
         builder::GenericBinaryBuilder::<I>::with_capacity(col.len(), col.value_data().len() / 2);
 
-    for v in col.iter() {
+    for v in col {
         match v {
             // TODO: this should be optimized by removing allocations if needed
             Some(v) => {
@@ -357,7 +359,7 @@ pub fn hex_decode_column<const PREFIXED: bool, I: OffsetSizeTrait>(
     let mut arr =
         builder::GenericBinaryBuilder::<I>::with_capacity(col.len(), col.value_data().len() / 2);
 
-    for v in col.iter() {
+    for v in col {
         match v {
             // TODO: this should be optimized by removing allocations if needed
             Some(v) => {
@@ -387,12 +389,12 @@ pub fn u256_column_from_binary<I: OffsetSizeTrait>(
 ) -> Result<Decimal256Array> {
     let mut arr = builder::Decimal256Builder::with_capacity(col.len());
 
-    for v in col.iter() {
+    for v in col {
         match v {
             Some(v) => {
                 let num = ruint::aliases::U256::try_from_be_slice(v).context("parse ruint u256")?;
                 let num = alloy_primitives::I256::try_from(num)
-                    .with_context(|| format!("u256 to i256. val was {}", num))?;
+                    .with_context(|| format!("u256 to i256. val was {num}"))?;
 
                 let val = arrow::datatypes::i256::from_be_bytes(num.to_be_bytes::<32>());
                 arr.append_value(val);
@@ -401,13 +403,15 @@ pub fn u256_column_from_binary<I: OffsetSizeTrait>(
         }
     }
 
-    Ok(arr.with_precision_and_scale(76, 0).unwrap().finish())
+    Ok(arr.with_precision_and_scale(76, 0)
+        .context("set precision and scale for Decimal256")?
+        .finish())
 }
 
 pub fn u256_column_to_binary(col: &Decimal256Array) -> Result<BinaryArray> {
     let mut arr = builder::BinaryBuilder::with_capacity(col.len(), col.len() * 32);
 
-    for v in col.iter() {
+    for v in col {
         match v {
             Some(v) => {
                 let num = alloy_primitives::I256::from_be_bytes::<32>(v.to_be_bytes());
@@ -424,6 +428,7 @@ pub fn u256_column_to_binary(col: &Decimal256Array) -> Result<BinaryArray> {
 }
 
 /// Converts all Decimal256 (U256) columns in the batch to big endian binary values
+#[expect(clippy::unwrap_used, reason = "downcast is guaranteed by prior data type check")]
 pub fn u256_to_binary(data: &RecordBatch) -> Result<RecordBatch> {
     let schema = schema_decimal256_to_binary(data.schema_ref());
     let mut columns = Vec::<Arc<dyn Array>>::with_capacity(data.columns().len());

@@ -104,8 +104,7 @@ impl<'py> pyo3::FromPyObject<'py> for DynType {
                         }
                         Err(e) => {
                             return Err(anyhow!(
-                                "Could not convert Struct fields into an iterator. Error: {:?}",
-                                e
+                                "Could not convert Struct fields into an iterator. Error: {e:?}"
                             )
                             .into())
                         }
@@ -128,20 +127,16 @@ impl<'py> pyo3::FromPyObject<'py> for DynType {
                             let param_type = variant
                                 .getattr("element_type")
                                 .context("Failed to retrieve Enum variant type")?;
-                            match param_type.to_string().as_str() {
-                                "None" => variants.push((name, None)),
-                                _ => {
-                                    let param_type = param_type.extract::<DynType>()?;
-                                    variants.push((name, Some(param_type)));
-                                }
-                            }
+                            if param_type.to_string().as_str() == "None" { variants.push((name, None)) } else {
+                                 let param_type = param_type.extract::<DynType>()?;
+                                 variants.push((name, Some(param_type)));
+                             }
                         }
                         Err(e) => {
                             return Err(anyhow!(
-                                "Could not convert Enum variants into an iterator. Error: {:?}",
-                                e
+                                "Could not convert Enum variants into an iterator. Error: {e:?}")
                             )
-                            .into())
+                            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
                         }
                     }
                 }
@@ -154,7 +149,7 @@ impl<'py> pyo3::FromPyObject<'py> for DynType {
                 let inner_type = inner_bound.extract::<DynType>()?;
                 Ok(DynType::Option(Box::new(inner_type)))
             }
-            _ => Err(anyhow!("Not yet implemented type: {}", variant_str).into()),
+            _ => Err(anyhow!("Not yet implemented type: {variant_str}").into()),
         }
     }
 }
@@ -213,8 +208,7 @@ pub fn deserialize_data(
 
     if error_on_remaining && !remaining_data.is_empty() {
         return Err(anyhow!(
-            "Remaining data after deserialization: {:?}",
-            remaining_data
+            "Remaining data after deserialization: {remaining_data:?}"
         ));
     }
 
@@ -246,7 +240,7 @@ fn deserialize_value<'a>(param_type: &DynType, data: &'a [u8]) -> Result<(DynVal
                     let (value, new_data) = deserialize_value(inner_type, &data[1..])?;
                     Ok((DynValue::Option(Some(Box::new(value))), new_data))
                 }
-                _ => Err(anyhow!("Invalid option value: {}", value)),
+                _ => Err(anyhow!("Invalid option value: {value}")),
             }
         }
         DynType::I8 => {
@@ -256,7 +250,8 @@ fn deserialize_value<'a>(param_type: &DynType, data: &'a [u8]) -> Result<(DynVal
                     data.len()
                 ));
             }
-            let value = i8::from_le_bytes(data[..1].try_into().unwrap());
+            let value = i8::from_le_bytes(data[..1].try_into().context("i8 conversion")?);
+
             Ok((DynValue::I8(value), &data[1..]))
         }
         DynType::I16 => {
@@ -266,7 +261,8 @@ fn deserialize_value<'a>(param_type: &DynType, data: &'a [u8]) -> Result<(DynVal
                     data.len()
                 ));
             }
-            let value = i16::from_le_bytes(data[..2].try_into().unwrap());
+            let value = i16::from_le_bytes(data[..2].try_into().context("i16 conversion")?);
+
             Ok((DynValue::I16(value), &data[2..]))
         }
         DynType::I32 => {
@@ -276,7 +272,8 @@ fn deserialize_value<'a>(param_type: &DynType, data: &'a [u8]) -> Result<(DynVal
                     data.len()
                 ));
             }
-            let value = i32::from_le_bytes(data[..4].try_into().unwrap());
+            let value = i32::from_le_bytes(data[..4].try_into().context("i32 conversion")?);
+
             Ok((DynValue::I32(value), &data[4..]))
         }
         DynType::I64 => {
@@ -286,7 +283,8 @@ fn deserialize_value<'a>(param_type: &DynType, data: &'a [u8]) -> Result<(DynVal
                     data.len()
                 ));
             }
-            let value = i64::from_le_bytes(data[..8].try_into().unwrap());
+            let value = i64::from_le_bytes(data[..8].try_into().context("i64 conversion")?);
+
             Ok((DynValue::I64(value), &data[8..]))
         }
         DynType::I128 => {
@@ -296,7 +294,8 @@ fn deserialize_value<'a>(param_type: &DynType, data: &'a [u8]) -> Result<(DynVal
                     data.len()
                 ));
             }
-            let value = i128::from_le_bytes(data[..16].try_into().unwrap());
+            let value = i128::from_le_bytes(data[..16].try_into().context("i128 conversion")?);
+
             Ok((DynValue::I128(value), &data[16..]))
         }
         DynType::U8 => {
@@ -313,7 +312,8 @@ fn deserialize_value<'a>(param_type: &DynType, data: &'a [u8]) -> Result<(DynVal
                     data.len()
                 ));
             }
-            let value = u16::from_le_bytes(data[..2].try_into().unwrap());
+            let value = u16::from_le_bytes(data[..2].try_into().context("u16 conversion")?);
+
             Ok((DynValue::U16(value), &data[2..]))
         }
         DynType::U32 => {
@@ -323,7 +323,8 @@ fn deserialize_value<'a>(param_type: &DynType, data: &'a [u8]) -> Result<(DynVal
                     data.len()
                 ));
             }
-            let value = u32::from_le_bytes(data[..4].try_into().unwrap());
+            let value = u32::from_le_bytes(data[..4].try_into().context("u32 conversion")?);
+
             Ok((DynValue::U32(value), &data[4..]))
         }
         DynType::U64 => {
@@ -333,7 +334,8 @@ fn deserialize_value<'a>(param_type: &DynType, data: &'a [u8]) -> Result<(DynVal
                     data.len()
                 ));
             }
-            let value = u64::from_le_bytes(data[..8].try_into().unwrap());
+            let value = u64::from_le_bytes(data[..8].try_into().context("u64 conversion")?);
+
             Ok((DynValue::U64(value), &data[8..]))
         }
         DynType::U128 => {
@@ -343,7 +345,8 @@ fn deserialize_value<'a>(param_type: &DynType, data: &'a [u8]) -> Result<(DynVal
                     data.len()
                 ));
             }
-            let value = u128::from_le_bytes(data[..16].try_into().unwrap());
+            let value = u128::from_le_bytes(data[..16].try_into().context("u128 conversion")?);
+
             Ok((DynValue::U128(value), &data[16..]))
         }
         DynType::Bool => {
@@ -381,7 +384,7 @@ fn deserialize_value<'a>(param_type: &DynType, data: &'a [u8]) -> Result<(DynVal
                     data.len()
                 ));
             }
-            let length = u32::from_le_bytes(data[..4].try_into().unwrap()) as usize;
+            let length = u32::from_le_bytes(data[..4].try_into().context("array length conversion")?) as usize;
             let mut remaining_data = &data[4..];
 
             let mut values = Vec::with_capacity(length);
@@ -413,7 +416,7 @@ fn deserialize_value<'a>(param_type: &DynType, data: &'a [u8]) -> Result<(DynVal
             let remaining_data = &data[1..];
 
             if variant_index >= variants.len() {
-                return Err(anyhow!("Invalid enum variant index: {}", variant_index));
+                return Err(anyhow!("Invalid enum variant index: {variant_index}"));
             }
 
             let (variant_name, variant_type) = &variants[variant_index];
@@ -433,17 +436,11 @@ fn deserialize_value<'a>(param_type: &DynType, data: &'a [u8]) -> Result<(DynVal
 
 fn check_type_size(param_type: &DynType) -> Result<usize> {
     match param_type {
-        DynType::U8 => Ok(1),
-        DynType::U16 => Ok(2),
-        DynType::U32 => Ok(4),
-        DynType::U64 => Ok(8),
-        DynType::U128 => Ok(16),
-        DynType::I8 => Ok(1),
-        DynType::I16 => Ok(2),
-        DynType::I32 => Ok(4),
-        DynType::I64 => Ok(8),
-        DynType::I128 => Ok(16),
-        DynType::Bool => Ok(1),
+        DynType::U8 | DynType::I8 | DynType::Bool => Ok(1),
+        DynType::U16 | DynType::I16 => Ok(2),
+        DynType::U32 | DynType::I32 => Ok(4),
+        DynType::U64 | DynType::I64 => Ok(8),
+        DynType::U128 | DynType::I128 => Ok(16),
         _ => Err(anyhow!("Unsupported primitive type for fixed array")),
     }
 }

@@ -18,7 +18,7 @@ pub fn ingest_module(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
 }
 
 #[pyclass]
-#[allow(clippy::type_complexity)]
+#[expect(clippy::type_complexity)]
 struct ResponseStream {
     inner: Option<Pin<Box<dyn Stream<Item = Result<BTreeMap<String, RecordBatch>>> + Send + Sync>>>,
 }
@@ -30,22 +30,19 @@ impl ResponseStream {
     }
 
     pub async fn next(&mut self) -> PyResult<Option<BTreeMap<String, PyObject>>> {
-        let inner = match self.inner.as_mut() {
-            Some(i) => i,
-            None => return Ok(None),
+        let Some(inner) = self.inner.as_mut() 
+        else {
+            return Ok(None);
         };
 
-        let next: BTreeMap<String, RecordBatch> = match inner.next().await {
-            Some(n) => n.context("get next item from inner stream")?,
-            None => {
-                self.inner = None;
-                return Ok(None);
-            }
+        let next: BTreeMap<String, RecordBatch> = if let Some(n) = inner.next().await { n.context("get next item from inner stream")? } else {
+             self.inner = None;
+             return Ok(None);
         };
 
         let mut out = BTreeMap::new();
 
-        for (table_name, batch) in next.into_iter() {
+        for (table_name, batch) in next {
             let batch =
                 Python::with_gil(|py| batch.to_pyarrow(py).context("map result to pyarrow"))?;
 
