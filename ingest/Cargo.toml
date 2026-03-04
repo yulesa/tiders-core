@@ -10,6 +10,7 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 sqd-portal-client = { workspace = true }
+tiders-rpc-client = { workspace = true }
 futures-lite = { workspace = true } 
 anyhow = { workspace = true }
 arrow = { workspace = true, features = ["ffi"] }
@@ -32,7 +33,6 @@ tiders-evm-schema = { path = "../evm-schema", version = "0.1.0" }
 tiders-cast = { path = "../cast", version = "0.1.0" }
 tiders-query = { path = "../query", version = "0.1.0" }
 tiders-svm-schema = { path = "../svm-schema", version = "0.1.0" }
-tiders-rpc-client = { path = "../../tiders-rpc-client/rust", version = "0.1.0" }
 
 [dev-dependencies]
 parquet = { workspace = true }
