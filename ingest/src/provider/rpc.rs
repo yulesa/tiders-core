@@ -1,21 +1,19 @@
 use crate::{evm, DataStream, ProviderConfig, Query, RpcTraceMethod};
 use anyhow::{anyhow, Context, Result};
-use tiders_rpc_client::{Client, ClientConfig};
 use futures_lite::StreamExt;
+use tiders_rpc_client::{Client, ClientConfig};
 
-pub fn start_stream(provider_config: ProviderConfig, query: Query) -> Result<DataStream> {
+pub fn start_stream(provider_config: &ProviderConfig, query: Query) -> Result<DataStream> {
     let evm_query = match query {
         Query::Evm(q) => q,
         Query::Svm(_) => return Err(anyhow!("RPC provider does not support SVM queries")),
     };
 
     let rpc_query = map_query(&evm_query);
-    let client_config = map_client_config(&provider_config)?;
+    let client_config = map_client_config(provider_config)?;
 
     let client = Client::new(client_config)?;
-    let stream = client
-        .stream(rpc_query)
-        .context("create rpc stream")?;
+    let stream = client.stream(rpc_query).context("create rpc stream")?;
 
     let stream = stream.map(|res| {
         res.map(Client::response_to_btree)
@@ -33,10 +31,11 @@ fn map_client_config(cfg: &ProviderConfig) -> Result<ClientConfig> {
 
     let mut client_config = ClientConfig::new(url);
 
-    client_config.bearer_token = cfg.bearer_token.clone();
+    client_config.bearer_token.clone_from(&cfg.bearer_token);
 
     if let Some(v) = cfg.max_num_retries {
-        client_config.max_num_retries = v as u32;
+        client_config.max_num_retries =
+            u32::try_from(v).context("max_num_retries exceeds u32 range")?;
     }
     if let Some(v) = cfg.retry_backoff_ms {
         client_config.retry_backoff_ms = v;
@@ -52,7 +51,7 @@ fn map_client_config(cfg: &ProviderConfig) -> Result<ClientConfig> {
     }
 
     client_config.stop_on_head = cfg.stop_on_head;
-    
+
     if let Some(v) = cfg.head_poll_interval_millis {
         client_config.head_poll_interval_millis = v;
     }
@@ -96,11 +95,31 @@ fn map_query(q: &evm::Query) -> tiders_rpc_client::Query {
 
 fn map_log_request(r: &evm::LogRequest) -> tiders_rpc_client::LogRequest {
     tiders_rpc_client::LogRequest {
-        address: r.address.iter().map(|a| tiders_rpc_client::Address(a.0)).collect(),
-        topic0: r.topic0.iter().map(|t| tiders_rpc_client::Topic(t.0)).collect(),
-        topic1: r.topic1.iter().map(|t| tiders_rpc_client::Topic(t.0)).collect(),
-        topic2: r.topic2.iter().map(|t| tiders_rpc_client::Topic(t.0)).collect(),
-        topic3: r.topic3.iter().map(|t| tiders_rpc_client::Topic(t.0)).collect(),
+        address: r
+            .address
+            .iter()
+            .map(|a| tiders_rpc_client::Address(a.0))
+            .collect(),
+        topic0: r
+            .topic0
+            .iter()
+            .map(|t| tiders_rpc_client::Topic(t.0))
+            .collect(),
+        topic1: r
+            .topic1
+            .iter()
+            .map(|t| tiders_rpc_client::Topic(t.0))
+            .collect(),
+        topic2: r
+            .topic2
+            .iter()
+            .map(|t| tiders_rpc_client::Topic(t.0))
+            .collect(),
+        topic3: r
+            .topic3
+            .iter()
+            .map(|t| tiders_rpc_client::Topic(t.0))
+            .collect(),
         include_transactions: r.include_transactions,
         include_transaction_logs: r.include_transaction_logs,
         include_transaction_traces: r.include_transaction_traces,
@@ -110,9 +129,21 @@ fn map_log_request(r: &evm::LogRequest) -> tiders_rpc_client::LogRequest {
 
 fn map_tx_request(r: &evm::TransactionRequest) -> tiders_rpc_client::TransactionRequest {
     tiders_rpc_client::TransactionRequest {
-        from_: r.from_.iter().map(|a| tiders_rpc_client::Address(a.0)).collect(),
-        to: r.to.iter().map(|a| tiders_rpc_client::Address(a.0)).collect(),
-        sighash: r.sighash.iter().map(|s| tiders_rpc_client::Sighash(s.0)).collect(),
+        from_: r
+            .from_
+            .iter()
+            .map(|a| tiders_rpc_client::Address(a.0))
+            .collect(),
+        to: r
+            .to
+            .iter()
+            .map(|a| tiders_rpc_client::Address(a.0))
+            .collect(),
+        sighash: r
+            .sighash
+            .iter()
+            .map(|s| tiders_rpc_client::Sighash(s.0))
+            .collect(),
         status: r.status.clone(),
         type_: r.type_.clone(),
         contract_deployment_address: r
@@ -120,7 +151,11 @@ fn map_tx_request(r: &evm::TransactionRequest) -> tiders_rpc_client::Transaction
             .iter()
             .map(|a| tiders_rpc_client::Address(a.0))
             .collect(),
-        hash: r.hash.iter().map(|h| tiders_rpc_client::Hash(h.0)).collect(),
+        hash: r
+            .hash
+            .iter()
+            .map(|h| tiders_rpc_client::Hash(h.0))
+            .collect(),
         include_logs: r.include_logs,
         include_traces: r.include_traces,
         include_blocks: r.include_blocks,
@@ -129,14 +164,34 @@ fn map_tx_request(r: &evm::TransactionRequest) -> tiders_rpc_client::Transaction
 
 fn map_trace_request(r: &evm::TraceRequest) -> tiders_rpc_client::TraceRequest {
     tiders_rpc_client::TraceRequest {
-        from_: r.from_.iter().map(|a| tiders_rpc_client::Address(a.0)).collect(),
-        to: r.to.iter().map(|a| tiders_rpc_client::Address(a.0)).collect(),
-        address: r.address.iter().map(|a| tiders_rpc_client::Address(a.0)).collect(),
+        from_: r
+            .from_
+            .iter()
+            .map(|a| tiders_rpc_client::Address(a.0))
+            .collect(),
+        to: r
+            .to
+            .iter()
+            .map(|a| tiders_rpc_client::Address(a.0))
+            .collect(),
+        address: r
+            .address
+            .iter()
+            .map(|a| tiders_rpc_client::Address(a.0))
+            .collect(),
         call_type: r.call_type.clone(),
         reward_type: r.reward_type.clone(),
         type_: r.type_.clone(),
-        sighash: r.sighash.iter().map(|s| tiders_rpc_client::Sighash(s.0)).collect(),
-        author: r.author.iter().map(|a| tiders_rpc_client::Address(a.0)).collect(),
+        sighash: r
+            .sighash
+            .iter()
+            .map(|s| tiders_rpc_client::Sighash(s.0))
+            .collect(),
+        author: r
+            .author
+            .iter()
+            .map(|a| tiders_rpc_client::Address(a.0))
+            .collect(),
         trace_method: tiders_rpc_client::TraceMethod::default(),
         include_transactions: r.include_transactions,
         include_transaction_logs: r.include_transaction_logs,
@@ -267,7 +322,6 @@ fn map_fields(f: &evm::Fields) -> tiders_rpc_client::Fields {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use futures_lite::StreamExt;
@@ -290,7 +344,7 @@ mod tests {
             ..Default::default()
         });
 
-        let mut stream = start_stream(rpc_config("http://localhost:8545"), query).unwrap();
+        let mut stream = start_stream(&rpc_config("http://localhost:8545"), query).unwrap();
         let data = stream.next().await.unwrap().unwrap();
 
         for batch in data.values() {
@@ -301,13 +355,21 @@ mod tests {
     #[test]
     fn config_mapping_and_error_paths() {
         // missing url → error
-        let no_url_err = start_stream(ProviderConfig::new(ProviderKind::Rpc), Query::Evm(evm::Query::default()))
-            .err().unwrap();
+        let no_url_err = start_stream(
+            &ProviderConfig::new(ProviderKind::Rpc),
+            Query::Evm(evm::Query::default()),
+        )
+        .err()
+        .unwrap();
         assert!(no_url_err.to_string().contains("url"));
 
         // SVM query → error
-        let svm_err = start_stream(rpc_config("http://localhost:8545"), Query::Svm(crate::svm::Query::default()))
-            .err().unwrap();
+        let svm_err = start_stream(
+            &rpc_config("http://localhost:8545"),
+            Query::Svm(crate::svm::Query::default()),
+        )
+        .err()
+        .unwrap();
         assert!(svm_err.to_string().contains("SVM"));
 
         // connection config fields are passed through

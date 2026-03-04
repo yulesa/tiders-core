@@ -1,9 +1,17 @@
-#![allow(clippy::should_implement_trait)]
-#![allow(clippy::field_reassign_with_default)]
+#![expect(
+    clippy::should_implement_trait,
+    reason = "LogKind::from_str is a constructor pattern, not Trait impl"
+)]
+#![expect(
+    clippy::field_reassign_with_default,
+    reason = "ProviderConfig is built by setting fields after construction"
+)]
 
 use std::{collections::BTreeMap, pin::Pin, sync::Arc};
 
-use anyhow::{anyhow, Context, Result};
+#[cfg(feature = "pyo3")]
+use anyhow::anyhow;
+use anyhow::{Context, Result};
 use arrow::record_batch::RecordBatch;
 use futures_lite::{Stream, StreamExt};
 use provider::common::{evm_query_to_generic, svm_query_to_generic};
@@ -33,7 +41,7 @@ impl<'py> pyo3::FromPyObject<'py> for Query {
         match kind {
             "evm" => Ok(Self::Evm(query.extract().context("parse query")?)),
             "svm" => Ok(Self::Svm(query.extract().context("parse query")?)),
-            _ => Err(anyhow!("unknown query kind: {}", kind).into()),
+            _ => Err(anyhow!("unknown query kind: {kind}").into()),
         }
     }
 }
@@ -97,7 +105,7 @@ impl<'py> pyo3::FromPyObject<'py> for RpcTraceMethod {
         match out {
             "trace_block" => Ok(Self::TraceBlock),
             "debug_trace_block_by_number" => Ok(Self::DebugTraceBlockByNumber),
-            _ => Err(anyhow!("unknown trace method: {}", out).into()),
+            _ => Err(anyhow!("unknown trace method: {out}").into()),
         }
     }
 }
@@ -120,7 +128,7 @@ impl<'py> pyo3::FromPyObject<'py> for ProviderKind {
             "sqd" => Ok(Self::Sqd),
             "hypersync" => Ok(Self::Hypersync),
             "rpc" => Ok(Self::Rpc),
-            _ => Err(anyhow!("unknown provider kind: {}", out).into()),
+            _ => Err(anyhow!("unknown provider kind: {out}").into()),
         }
     }
 }
@@ -136,24 +144,26 @@ fn make_req_fields<T: DeserializeOwned>(query: &tiders_query::Query) -> Result<T
     let fields = req_fields_query
         .fields
         .into_iter()
-        .map(|(k, v)| {
-            (
-                k.strip_suffix('s').unwrap().to_owned(),
+        .map(|(k, v)| -> Result<_> {
+            Ok((
+                k.strip_suffix('s')
+                    .context("field key should end with 's'")?
+                    .to_owned(),
                 v.into_iter()
                     .map(|v| (v, true))
                     .collect::<BTreeMap<String, bool>>(),
-            )
+            ))
         })
-        .collect::<BTreeMap<String, _>>();
+        .collect::<Result<BTreeMap<String, _>>>()?;
 
-    Ok(serde_json::from_value(serde_json::to_value(&fields).unwrap()).unwrap())
+    let json_value = serde_json::to_value(&fields).context("serialize fields to JSON")?;
+    serde_json::from_value(json_value).context("deserialize fields from JSON")
 }
 
 pub async fn start_stream(provider_config: ProviderConfig, mut query: Query) -> Result<DataStream> {
     let generic_query = match &mut query {
         Query::Evm(evm_query) => {
-            let generic_query =
-                evm_query_to_generic(evm_query).context("validate evm query")?;
+            let generic_query = evm_query_to_generic(evm_query).context("validate evm query")?;
 
             evm_query.fields = make_req_fields(&generic_query).context("make req fields")?;
 
@@ -176,8 +186,9 @@ pub async fn start_stream(provider_config: ProviderConfig, mut query: Query) -> 
         ProviderKind::Hypersync => provider::hypersync::start_stream(provider_config, query)
             .await
             .context("start hypersync stream")?,
-        ProviderKind::Rpc => provider::rpc::start_stream(provider_config, query)
-            .context("start rpc stream")?,
+        ProviderKind::Rpc => {
+            provider::rpc::start_stream(&provider_config, query).context("start rpc stream")?
+        }
     };
 
     let stream = stream.then(move |res| {
@@ -191,7 +202,8 @@ pub async fn start_stream(provider_config: ProviderConfig, mut query: Query) -> 
                 })
             })
             .await
-            .unwrap()
+            .context("rayon task was cancelled")
+            .and_then(|r| r)
         }
     });
 

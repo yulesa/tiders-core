@@ -3,7 +3,10 @@ use arrow::array::{
     builder, Array, BinaryArray, GenericBinaryArray, GenericListArray, GenericStringArray,
     LargeBinaryArray, LargeStringArray, OffsetSizeTrait, StringArray,
 };
-use arrow::{array::RecordBatch, datatypes::*};
+use arrow::{
+    array::RecordBatch,
+    datatypes::{DataType, Field, Schema},
+};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use std::sync::Arc;
 mod deserialize;
@@ -38,7 +41,7 @@ impl<'py> pyo3::FromPyObject<'py> for InstructionSignature {
                 hex_to_bytes(s).context("failed to decode hex")?
             }
             "bytes" => discriminator_ob.extract()?,
-            _ => return Err(anyhow!("unknown type: {}", discriminator_ob_type).into()),
+            _ => return Err(anyhow!("unknown type: {discriminator_ob_type}").into()),
         };
 
         let params = ob.getattr("params")?.extract::<Vec<ParamInput>>()?;
@@ -52,10 +55,11 @@ impl<'py> pyo3::FromPyObject<'py> for InstructionSignature {
     }
 }
 
+#[cfg(feature = "pyo3")]
 fn hex_to_bytes(hex_string: &str) -> Result<Vec<u8>> {
     let hex_string = hex_string.strip_prefix("0x").unwrap_or(hex_string);
     let hex_string = if hex_string.len() % 2 == 1 {
-        format!("0{}", hex_string)
+        format!("0{hex_string}")
     } else {
         hex_string.to_string()
     };
@@ -102,22 +106,19 @@ fn unpack_rest_of_accounts<ListI: OffsetSizeTrait, InnerI: OffsetSizeTrait>(
         let mut builder = builder::BinaryBuilder::with_capacity(rest_of_acc.len(), data_size);
 
         for acc_arr in rest_of_acc.iter() {
-            let acc_arr = match acc_arr {
-                Some(a) => a,
-                None => {
-                    builder.append_null();
-                    continue;
-                }
+            let Some(acc_arr) = acc_arr else {
+                builder.append_null();
+                continue;
             };
 
             let arr = acc_arr
                 .as_any()
                 .downcast_ref::<GenericBinaryArray<InnerI>>()
-                .unwrap();
-            if !arr.is_null(i) {
-                builder.append_value(arr.value(i));
-            } else {
+                .context("failed to downcast account array in rest_of_accounts")?;
+            if arr.is_null(i) {
                 builder.append_null();
+            } else {
+                builder.append_value(arr.value(i));
             }
         }
 
@@ -128,27 +129,32 @@ fn unpack_rest_of_accounts<ListI: OffsetSizeTrait, InnerI: OffsetSizeTrait>(
 }
 
 pub fn decode_instructions_batch(
-    signature: InstructionSignature,
+    signature: &InstructionSignature,
     batch: &RecordBatch,
     allow_decode_fail: bool,
 ) -> Result<RecordBatch> {
     let mut account_arrays: Vec<BinaryArray> = Vec::with_capacity(20);
 
     for i in 0..signature.accounts_names.len().min(10) {
-        let col_name = format!("a{}", i);
+        let col_name = format!("a{i}");
         let col = batch
             .column_by_name(&col_name)
-            .with_context(|| format!("account {} not found but was required", i))?;
+            .with_context(|| format!("account {i} not found but was required"))?;
 
         if col.data_type() == &DataType::Binary {
-            account_arrays.push(col.as_any().downcast_ref::<BinaryArray>().unwrap().clone());
+            account_arrays.push(
+                col.as_any()
+                    .downcast_ref::<BinaryArray>()
+                    .context("failed to downcast Binary account column")?
+                    .clone(),
+            );
         } else if col.data_type() == &DataType::LargeBinary {
             account_arrays.push(
                 arrow::compute::cast(col, &DataType::Binary)
-                    .unwrap()
+                    .context("failed to cast LargeBinary account column to Binary")?
                     .as_any()
                     .downcast_ref::<BinaryArray>()
-                    .unwrap()
+                    .context("failed to downcast casted account column to BinaryArray")?
                     .clone(),
             );
         }
@@ -163,21 +169,30 @@ pub fn decode_instructions_batch(
         if rest_of_acc.data_type() == &DataType::new_list(DataType::Binary, true) {
             unpack_rest_of_accounts::<i32, i32>(
                 num_acc,
-                rest_of_acc.as_any().downcast_ref().unwrap(),
+                rest_of_acc
+                    .as_any()
+                    .downcast_ref()
+                    .context("failed to downcast rest_of_accounts to List<Binary>")?,
                 &mut account_arrays,
             )
             .context("unpack rest_of_accounts column")?;
         } else if rest_of_acc.data_type() == &DataType::new_list(DataType::LargeBinary, true) {
             unpack_rest_of_accounts::<i32, i64>(
                 num_acc,
-                rest_of_acc.as_any().downcast_ref().unwrap(),
+                rest_of_acc
+                    .as_any()
+                    .downcast_ref()
+                    .context("failed to downcast rest_of_accounts to List<LargeBinary>")?,
                 &mut account_arrays,
             )
             .context("unpack rest_of_accounts column")?;
         } else if rest_of_acc.data_type() == &DataType::new_large_list(DataType::Binary, true) {
             unpack_rest_of_accounts::<i64, i32>(
                 num_acc,
-                rest_of_acc.as_any().downcast_ref().unwrap(),
+                rest_of_acc
+                    .as_any()
+                    .downcast_ref()
+                    .context("failed to downcast rest_of_accounts to LargeList<Binary>")?,
                 &mut account_arrays,
             )
             .context("unpack rest_of_accounts column")?;
@@ -185,7 +200,10 @@ pub fn decode_instructions_batch(
         {
             unpack_rest_of_accounts::<i64, i64>(
                 num_acc,
-                rest_of_acc.as_any().downcast_ref().unwrap(),
+                rest_of_acc
+                    .as_any()
+                    .downcast_ref()
+                    .context("failed to downcast rest_of_accounts to LargeList<LargeBinary>")?,
                 &mut account_arrays,
             )
             .context("unpack rest_of_accounts column")?;
@@ -200,7 +218,10 @@ pub fn decode_instructions_batch(
         decode_instructions(
             signature,
             &account_arrays,
-            data_col.as_any().downcast_ref::<BinaryArray>().unwrap(),
+            data_col
+                .as_any()
+                .downcast_ref::<BinaryArray>()
+                .context("failed to downcast data column to BinaryArray")?,
             allow_decode_fail,
         )
     } else if data_col.data_type() == &DataType::LargeBinary {
@@ -210,7 +231,7 @@ pub fn decode_instructions_batch(
             data_col
                 .as_any()
                 .downcast_ref::<LargeBinaryArray>()
-                .unwrap(),
+                .context("failed to downcast data column to LargeBinaryArray")?,
             allow_decode_fail,
         )
     } else {
@@ -221,7 +242,7 @@ pub fn decode_instructions_batch(
 }
 
 pub fn decode_instructions<I: OffsetSizeTrait>(
-    signature: InstructionSignature,
+    signature: &InstructionSignature,
     accounts: &[BinaryArray],
     data: &GenericBinaryArray<I>,
     allow_decode_fail: bool,
@@ -234,15 +255,13 @@ pub fn decode_instructions<I: OffsetSizeTrait>(
     for row_idx in 0..data.len() {
         if data.is_null(row_idx) {
             if allow_decode_fail {
-                log::debug!("Instruction data is null in row {}", row_idx);
-                decoded_params_vec.iter_mut().for_each(|v| v.push(None));
+                log::debug!("Instruction data is null in row {row_idx}");
+                for v in &mut decoded_params_vec {
+                    v.push(None);
+                }
                 continue;
-            } else {
-                return Err(anyhow::anyhow!(
-                    "Instruction data is null in row {}",
-                    row_idx
-                ));
             }
+            return Err(anyhow::anyhow!("Instruction data is null in row {row_idx}"));
         }
 
         let instruction_data = data.value(row_idx).to_vec();
@@ -250,15 +269,15 @@ pub fn decode_instructions<I: OffsetSizeTrait>(
         let data = match data_result {
             Ok(data) => data,
             Err(e) if allow_decode_fail => {
-                log::debug!("Error matching discriminators in row {}: {:?}", row_idx, e);
-                decoded_params_vec.iter_mut().for_each(|v| v.push(None));
+                log::debug!("Error matching discriminators in row {row_idx}: {e:?}");
+                for v in &mut decoded_params_vec {
+                    v.push(None);
+                }
                 continue;
             }
             Err(e) => {
                 return Err(anyhow::anyhow!(
-                    "Error matching discriminators in row {}: {:?}",
-                    row_idx,
-                    e
+                    "Error matching discriminators in row {row_idx}: {e:?}"
                 ));
             }
         };
@@ -273,19 +292,15 @@ pub fn decode_instructions<I: OffsetSizeTrait>(
         let decoded_ix = match decoded_ix_result {
             Ok(ix) => ix,
             Err(e) if allow_decode_fail => {
-                log::debug!(
-                    "Error deserializing instruction in row {}: {:?}",
-                    row_idx,
-                    e
-                );
-                decoded_params_vec.iter_mut().for_each(|v| v.push(None));
+                log::debug!("Error deserializing instruction in row {row_idx}: {e:?}");
+                for v in &mut decoded_params_vec {
+                    v.push(None);
+                }
                 continue;
             }
             Err(e) => {
                 return Err(anyhow::anyhow!(
-                    "Error deserializing instruction in row {}: {:?}",
-                    row_idx,
-                    e
+                    "Error deserializing instruction in row {row_idx}: {e:?}"
                 ));
             }
         };
@@ -320,16 +335,19 @@ pub fn decode_instructions<I: OffsetSizeTrait>(
     for i in 0..acc_names_len {
         let arr = accounts
             .get(i)
-            .context(format!("Account a{} not found during decoding", i))?;
+            .context(format!("Account a{i} not found during decoding"))?;
 
         if arr.data_type() == &DataType::LargeBinary {
-            accounts_arrays.push(arrow::compute::cast(arr, &DataType::Binary).unwrap());
+            accounts_arrays.push(
+                arrow::compute::cast(arr, &DataType::Binary)
+                    .context("failed to cast LargeBinary account to Binary")?,
+            );
         } else {
             accounts_arrays.push(Arc::new(arr.clone()) as Arc<dyn Array>);
         }
 
         if signature.accounts_names[i].is_empty() {
-            let field = Field::new(format!("a{}", i), DataType::Binary, true);
+            let field = Field::new(format!("a{i}"), DataType::Binary, true);
             acc_fields.push(field);
         } else {
             let field = Field::new(signature.accounts_names[i].clone(), DataType::Binary, true);
@@ -354,7 +372,7 @@ pub fn decode_instructions<I: OffsetSizeTrait>(
 }
 
 pub fn decode_logs_batch(
-    signature: LogSignature,
+    signature: &LogSignature,
     batch: &RecordBatch,
     allow_decode_fail: bool,
 ) -> Result<RecordBatch> {
@@ -365,7 +383,10 @@ pub fn decode_logs_batch(
     if message_col.data_type() == &DataType::Utf8 {
         decode_logs(
             signature,
-            message_col.as_any().downcast_ref::<StringArray>().unwrap(),
+            message_col
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .context("failed to downcast message column to StringArray")?,
             allow_decode_fail,
         )
     } else if message_col.data_type() == &DataType::LargeUtf8 {
@@ -374,7 +395,7 @@ pub fn decode_logs_batch(
             message_col
                 .as_any()
                 .downcast_ref::<LargeStringArray>()
-                .unwrap(),
+                .context("failed to downcast message column to LargeStringArray")?,
             allow_decode_fail,
         )
     } else {
@@ -383,7 +404,7 @@ pub fn decode_logs_batch(
 }
 
 pub fn decode_logs<I: OffsetSizeTrait>(
-    signature: LogSignature,
+    signature: &LogSignature,
     data: &GenericStringArray<I>,
     allow_decode_fail: bool,
 ) -> Result<RecordBatch> {
@@ -395,12 +416,13 @@ pub fn decode_logs<I: OffsetSizeTrait>(
     for row_idx in 0..data.len() {
         if data.is_null(row_idx) {
             if allow_decode_fail {
-                log::debug!("Log data is null in row {}", row_idx);
-                decoded_params_vec.iter_mut().for_each(|v| v.push(None));
+                log::debug!("Log data is null in row {row_idx}");
+                for v in &mut decoded_params_vec {
+                    v.push(None);
+                }
                 continue;
-            } else {
-                return Err(anyhow::anyhow!("Log data is null in row {}", row_idx));
             }
+            return Err(anyhow::anyhow!("Log data is null in row {row_idx}"));
         }
 
         let log_data = data.value(row_idx);
@@ -408,19 +430,15 @@ pub fn decode_logs<I: OffsetSizeTrait>(
         let log_data = match log_data {
             Ok(log_data) => log_data,
             Err(e) if allow_decode_fail => {
-                log::debug!(
-                    "Error base 64 decoding log data in row {}: {:?}",
-                    row_idx,
-                    e
-                );
-                decoded_params_vec.iter_mut().for_each(|v| v.push(None));
+                log::debug!("Error base 64 decoding log data in row {row_idx}: {e:?}");
+                for v in &mut decoded_params_vec {
+                    v.push(None);
+                }
                 continue;
             }
             Err(e) => {
                 return Err(anyhow::anyhow!(
-                    "Error base 64 decoding log data in row {}: {:?}",
-                    row_idx,
-                    e
+                    "Error base 64 decoding log data in row {row_idx}: {e:?}"
                 ));
             }
         };
@@ -429,15 +447,15 @@ pub fn decode_logs<I: OffsetSizeTrait>(
         let decoded_log = match decoded_log_result {
             Ok(log) => log,
             Err(e) if allow_decode_fail => {
-                log::debug!("Error deserializing log in row {}: {:?}", row_idx, e);
-                decoded_params_vec.iter_mut().for_each(|v| v.push(None));
+                log::debug!("Error deserializing log in row {row_idx}: {e:?}");
+                for v in &mut decoded_params_vec {
+                    v.push(None);
+                }
                 continue;
             }
             Err(e) => {
                 return Err(anyhow::anyhow!(
-                    "Error deserializing log in row {}: {:?}",
-                    row_idx,
-                    e
+                    "Error deserializing log in row {row_idx}: {e:?}"
                 ));
             }
         };
@@ -879,7 +897,7 @@ mod tests {
             ],
         };
 
-        let result = decode_instructions_batch(ix_signature, &instructions, true)
+        let result = decode_instructions_batch(&ix_signature, &instructions, true)
             .context("decode failed")
             .unwrap();
 
@@ -950,7 +968,7 @@ mod tests {
             ],
         };
 
-        let result = decode_logs_batch(signature, &logs, true)
+        let result = decode_logs_batch(&signature, &logs, true)
             .context("decode failed")
             .unwrap();
 

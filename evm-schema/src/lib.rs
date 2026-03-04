@@ -215,6 +215,10 @@ pub struct BlocksBuilder {
 pub struct WithdrawalsBuilder(pub builder::ListBuilder<builder::StructBuilder>);
 
 impl Default for WithdrawalsBuilder {
+    #[expect(
+        clippy::unwrap_used,
+        reason = "precision 76, scale 0 is always valid for Decimal256"
+    )]
     fn default() -> Self {
         Self(builder::ListBuilder::new(builder::StructBuilder::new(
             match withdrawal_dt() {
@@ -236,6 +240,10 @@ impl Default for WithdrawalsBuilder {
 }
 
 impl BlocksBuilder {
+    #[expect(
+        clippy::unwrap_used,
+        reason = "schema and precision/scale are compile-time constants"
+    )]
     pub fn finish(mut self) -> RecordBatch {
         RecordBatch::try_new(
             Arc::new(blocks_schema()),
@@ -386,6 +394,10 @@ impl Default for AccessListBuilder {
 }
 
 impl TransactionsBuilder {
+    #[expect(
+        clippy::unwrap_used,
+        reason = "schema and precision/scale are compile-time constants"
+    )]
     pub fn finish(mut self) -> RecordBatch {
         RecordBatch::try_new(
             Arc::new(transactions_schema()),
@@ -558,6 +570,7 @@ pub struct LogsBuilder {
 }
 
 impl LogsBuilder {
+    #[expect(clippy::unwrap_used, reason = "schema is a compile-time constant")]
     pub fn finish(mut self) -> RecordBatch {
         RecordBatch::try_new(
             Arc::new(logs_schema()),
@@ -610,6 +623,10 @@ pub struct TracesBuilder {
 }
 
 impl TracesBuilder {
+    #[expect(
+        clippy::unwrap_used,
+        reason = "schema and precision/scale are compile-time constants"
+    )]
     pub fn finish(mut self) -> RecordBatch {
         RecordBatch::try_new(
             Arc::new(traces_schema()),

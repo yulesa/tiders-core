@@ -1,7 +1,7 @@
 use crate::{evm, svm, DataStream, ProviderConfig, Query};
 use anyhow::{anyhow, Context, Result};
-use log::warn;
 use futures_lite::StreamExt;
+use log::warn;
 use std::collections::BTreeMap;
 
 use std::sync::Arc;
@@ -15,7 +15,7 @@ fn svm_query_to_sqd(query: &svm::Query) -> Result<sqd_portal_client::svm::Query>
     let hex_encode = |addr: &[u8]| format!("0x{}", faster_hex::hex_string(addr));
 
     Ok(sqd_portal_client::svm::Query {
-        type_: Default::default(),
+        type_: sqd_portal_client::svm::QueryType::default(),
         from_block: query.from_block,
         to_block: query.to_block,
         include_all_blocks: query.include_all_blocks,
@@ -140,7 +140,7 @@ fn svm_query_to_sqd(query: &svm::Query) -> Result<sqd_portal_client::svm::Query>
                 if !inst.discriminator.is_empty() {
                     let len = inst.discriminator[0].0.len();
 
-                    for d in inst.discriminator.iter() {
+                    for d in &inst.discriminator {
                         if d.0.len() != len {
                             return Err(anyhow!("all values in instruction_request.discriminator should have the same length. Expected {} but got {}", len, d.0.len()));
                         }
@@ -336,12 +336,12 @@ fn svm_query_to_sqd(query: &svm::Query) -> Result<sqd_portal_client::svm::Query>
     })
 }
 
-fn evm_query_to_sqd(query: &evm::Query) -> Result<sqd_portal_client::evm::Query> {
+fn evm_query_to_sqd(query: &evm::Query) -> sqd_portal_client::evm::Query {
     let hex_encode = |addr: &[u8]| format!("0x{}", faster_hex::hex_string(addr));
 
     let mut logs: Vec<_> = Vec::with_capacity(query.logs.len());
 
-    for lg in query.logs.iter() {
+    for lg in &query.logs {
         logs.push(sqd_portal_client::evm::LogRequest {
             address: lg
                 .address
@@ -374,8 +374,8 @@ fn evm_query_to_sqd(query: &evm::Query) -> Result<sqd_portal_client::evm::Query>
         });
     }
 
-    Ok(sqd_portal_client::evm::Query {
-        type_: Default::default(),
+    sqd_portal_client::evm::Query {
+        type_: sqd_portal_client::evm::QueryType::default(),
         from_block: query.from_block,
         to_block: query.to_block,
         include_all_blocks: query.include_all_blocks,
@@ -538,7 +538,7 @@ fn evm_query_to_sqd(query: &evm::Query) -> Result<sqd_portal_client::evm::Query>
                 reward_type: query.fields.trace.author,
             },
         },
-    })
+    }
 }
 
 pub fn start_stream(cfg: ProviderConfig, query: crate::Query) -> Result<DataStream> {
@@ -614,7 +614,7 @@ pub fn start_stream(cfg: ProviderConfig, query: crate::Query) -> Result<DataStre
             Ok(Box::pin(stream))
         }
         Query::Evm(query) => {
-            let sqd_query = evm_query_to_sqd(&query).context("convert to sqd query")?;
+            let sqd_query = evm_query_to_sqd(&query);
 
             let receiver = client.evm_arrow_finalized_stream(sqd_query, stream_config);
 

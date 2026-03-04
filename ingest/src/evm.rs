@@ -1,3 +1,4 @@
+#[cfg(feature = "pyo3")]
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
 
@@ -92,6 +93,7 @@ pub struct TransactionRequest {
 
 #[derive(Default, Debug, Clone)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
+#[expect(clippy::struct_excessive_bools, reason = "field selection flags")]
 pub struct LogRequest {
     pub address: Vec<Address>,
     pub topic0: Vec<Topic>,
@@ -106,6 +108,7 @@ pub struct LogRequest {
 
 #[derive(Default, Debug, Clone)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
+#[expect(clippy::struct_excessive_bools, reason = "field selection flags")]
 pub struct TraceRequest {
     pub from_: Vec<Address>,
     pub to: Vec<Address>,
@@ -145,6 +148,7 @@ impl Fields {
 #[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(default)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
+#[expect(clippy::struct_excessive_bools, reason = "field selection flags")]
 pub struct BlockFields {
     pub number: bool,
     pub hash: bool,
@@ -214,6 +218,7 @@ impl BlockFields {
 #[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(default)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
+#[expect(clippy::struct_excessive_bools, reason = "field selection flags")]
 pub struct TransactionFields {
     pub block_hash: bool,
     pub block_number: bool,
@@ -317,6 +322,7 @@ impl TransactionFields {
 #[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(default)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
+#[expect(clippy::struct_excessive_bools, reason = "field selection flags")]
 pub struct LogFields {
     pub removed: bool,
     pub log_index: bool,
@@ -354,6 +360,7 @@ impl LogFields {
 #[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(default)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
+#[expect(clippy::struct_excessive_bools, reason = "field selection flags")]
 pub struct TraceFields {
     #[serde(rename = "from")]
     pub from_: bool,
