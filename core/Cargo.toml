@@ -1,6 +1,6 @@
 [package]
 name = "tiders-core"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Core library for tiders blockchain data framework"
 homepage = "https://github.com/yulesa/tiders-core"
@@ -9,13 +9,13 @@ authors = ["Ozgur Akkurt <oezgurmakkurt@gmail.com>"]
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-tiders-evm-decode = { path = "../evm-decode", version = "0.1.0" }
-tiders-cast = { path = "../cast", version = "0.1.0" }
-tiders-svm-decode = { path = "../svm-decode", version = "0.1.0" }
-tiders-evm-schema = { path = "../evm-schema", version = "0.1.0" }
-tiders-svm-schema = { path = "../svm-schema", version = "0.1.0" }
-tiders-ingest = { path = "../ingest", version = "0.1.0" }
-tiders-query = { path = "../query", version = "0.1.0" }
+tiders-evm-decode = { path = "../evm-decode", version = "0.1.1" }
+tiders-cast = { path = "../cast", version = "0.1.1" }
+tiders-svm-decode = { path = "../svm-decode", version = "0.1.1" }
+tiders-evm-schema = { path = "../evm-schema", version = "0.1.1" }
+tiders-svm-schema = { path = "../svm-schema", version = "0.1.1" }
+tiders-ingest = { path = "../ingest", version = "0.1.1" }
+tiders-query = { path = "../query", version = "0.1.1" }
 
 [dev-dependencies]
 hypersync-client = { workspace = true } 
