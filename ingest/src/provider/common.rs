@@ -104,6 +104,7 @@ pub fn evm_query_to_generic(query: &evm::Query) -> Result<GenericQuery> {
     })
 }
 
+#[expect(clippy::unwrap_used, reason = "Filter::contains on a non-empty Arrow array is infallible")]
 fn evm_tx_selection_to_generic(selection: &evm::TransactionRequest) -> TableSelection {
     let from = Arc::new(BinaryArray::from_iter_values(
         selection.from_.iter().map(|x| x.0.as_slice()),
@@ -143,7 +144,11 @@ fn evm_tx_selection_to_generic(selection: &evm::TransactionRequest) -> TableSele
     let filters = filters
         .into_iter()
         .filter_map(|(name, arr)| {
-            Filter::contains(arr).ok().map(|filter| (name.to_owned(), filter))
+            if arr.is_empty() {
+                None
+            } else {
+                Some((name.to_owned(), Filter::contains(arr).unwrap()))
+            }
         })
         .collect();
 
@@ -182,6 +187,7 @@ fn evm_tx_selection_to_generic(selection: &evm::TransactionRequest) -> TableSele
     TableSelection { filters, include }
 }
 
+#[expect(clippy::unwrap_used, reason = "Filter::contains on a non-empty Arrow array is infallible")]
 fn evm_trace_selection_to_generic(selection: &evm::TraceRequest) -> TableSelection {
     let from = Arc::new(BinaryArray::from_iter_values(
         selection.from_.iter().map(|x| x.0.as_slice()),
@@ -216,9 +222,14 @@ fn evm_trace_selection_to_generic(selection: &evm::TraceRequest) -> TableSelecti
     let filters = filters
         .into_iter()
         .filter_map(|(name, arr)| {
-            Filter::contains(arr).ok().map(|filter| (name.to_owned(), filter))
+            if arr.is_empty() {
+                None
+            } else {
+                Some((name.to_owned(), Filter::contains(arr).unwrap()))
+            }
         })
         .collect();
+
 
     let mut include = Vec::with_capacity(4);
 
@@ -266,6 +277,7 @@ fn evm_trace_selection_to_generic(selection: &evm::TraceRequest) -> TableSelecti
     TableSelection { filters, include }
 }
 
+#[expect(clippy::unwrap_used, reason = "Filter::contains on a non-empty Arrow array is infallible")]
 fn evm_log_selection_to_generic(selection: &evm::LogRequest) -> TableSelection {
     let address = Arc::new(BinaryArray::from_iter_values(
         selection.address.iter().map(|x| x.0.as_slice()),
@@ -294,7 +306,11 @@ fn evm_log_selection_to_generic(selection: &evm::LogRequest) -> TableSelection {
     let filters = filters
         .into_iter()
         .filter_map(|(name, arr)| {
-            Filter::contains(arr).ok().map(|filter| (name.to_owned(), filter))
+            if arr.is_empty() {
+                None
+            } else {
+                Some((name.to_owned(), Filter::contains(arr).unwrap()))
+            }
         })
         .collect();
 
@@ -457,6 +473,7 @@ pub fn svm_query_to_generic(query: &svm::Query) -> GenericQuery {
     }
 }
 
+#[expect(clippy::unwrap_used, reason = "Filter construction on a non-empty Arrow array is infallible")]
 fn svm_instruction_selection_to_generic(selection: &svm::InstructionRequest) -> TableSelection {
     let program_id = Arc::new(BinaryArray::from_iter_values(
         selection.program_id.iter().map(|x| x.0.as_slice()),
@@ -532,15 +549,14 @@ fn svm_instruction_selection_to_generic(selection: &svm::InstructionRequest) -> 
 
     let mut filters: BTreeMap<String, Filter> = filters
         .into_iter()
-        .filter_map(|(name, arr)| {if arr.is_empty() {
-            return None;
-        }
-        let filter_result = if name == "data" {
-            Filter::starts_with(arr)
-        } else {
-            Filter::contains(arr)
-        };
-        filter_result.ok().map(|f| (name.to_owned(), f))
+        .filter_map(|(name, arr)| {
+            if arr.is_empty() {
+                None
+            } else if name == "data" {
+                Some((name.to_owned(), Filter::starts_with(arr).unwrap()))
+            } else {
+                Some((name.to_owned(), Filter::contains(arr).unwrap()))
+            }
         })
         .collect();
 
@@ -612,6 +628,7 @@ fn svm_instruction_selection_to_generic(selection: &svm::InstructionRequest) -> 
     TableSelection { filters, include }
 }
 
+#[expect(clippy::unwrap_used, reason = "Filter::contains on a non-empty Arrow array is infallible")]
 fn svm_transaction_selection_to_generic(selection: &svm::TransactionRequest) -> TableSelection {
     let fee_payer = Arc::new(BinaryArray::from_iter_values(
         selection.fee_payer.iter().map(|x| x.0.as_slice()),
@@ -622,7 +639,11 @@ fn svm_transaction_selection_to_generic(selection: &svm::TransactionRequest) -> 
     let filters: BTreeMap<String, Filter> = filters
         .into_iter()
         .filter_map(|(name, arr)| {
-            Filter::contains(arr).ok().map(|filter| (name.to_owned(), filter))
+            if arr.is_empty() {
+                None
+            } else {
+                Some((name.to_owned(), Filter::contains(arr).unwrap()))
+            }
         })
         .collect();
 
@@ -655,6 +676,7 @@ fn svm_transaction_selection_to_generic(selection: &svm::TransactionRequest) -> 
     TableSelection { filters, include }
 }
 
+#[expect(clippy::unwrap_used, reason = "Filter::contains on a non-empty Arrow array is infallible")]
 fn svm_log_selection_to_generic(selection: &svm::LogRequest) -> TableSelection {
     let program_id = Arc::new(BinaryArray::from_iter_values(
         selection.program_id.iter().map(|x| x.0.as_slice()),
@@ -668,7 +690,11 @@ fn svm_log_selection_to_generic(selection: &svm::LogRequest) -> TableSelection {
     let filters: BTreeMap<String, Filter> = filters
         .into_iter()
         .filter_map(|(name, arr)| {
-            Filter::contains(arr).ok().map(|filter| (name.to_owned(), filter))
+            if arr.is_empty() {
+                None
+            } else {
+                Some((name.to_owned(), Filter::contains(arr).unwrap()))
+            }
         })
         .collect();
 
@@ -701,6 +727,7 @@ fn svm_log_selection_to_generic(selection: &svm::LogRequest) -> TableSelection {
     TableSelection { filters, include }
 }
 
+#[expect(clippy::unwrap_used, reason = "Filter::contains on a non-empty Arrow array is infallible")]
 fn svm_balance_selection_to_generic(selection: &svm::BalanceRequest) -> TableSelection {
     let account = Arc::new(BinaryArray::from_iter_values(
         selection.account.iter().map(|x| x.0.as_slice()),
@@ -711,7 +738,11 @@ fn svm_balance_selection_to_generic(selection: &svm::BalanceRequest) -> TableSel
     let filters: BTreeMap<String, Filter> = filters
         .into_iter()
         .filter_map(|(name, arr)| {
-            Filter::contains(arr).ok().map(|filter| (name.to_owned(), filter))
+            if arr.is_empty() {
+                None
+            } else {
+                Some((name.to_owned(), Filter::contains(arr).unwrap()))
+            }
         })
         .collect();
 
@@ -744,6 +775,7 @@ fn svm_balance_selection_to_generic(selection: &svm::BalanceRequest) -> TableSel
     TableSelection { filters, include }
 }
 
+#[expect(clippy::unwrap_used, reason = "Filter::contains on a non-empty Arrow array is infallible")]
 fn svm_token_balance_selection_to_generic(selection: &svm::TokenBalanceRequest) -> TableSelection {
     let account = Arc::new(BinaryArray::from_iter_values(
         selection.account.iter().map(|x| x.0.as_slice()),
@@ -780,7 +812,11 @@ fn svm_token_balance_selection_to_generic(selection: &svm::TokenBalanceRequest) 
     let filters: BTreeMap<String, Filter> = filters
         .into_iter()
         .filter_map(|(name, arr)| {
-            Filter::contains(arr).ok().map(|filter| (name.to_owned(), filter))
+            if arr.is_empty() {
+                None
+            } else {
+                Some((name.to_owned(), Filter::contains(arr).unwrap()))
+            }
         })
         .collect();
 
@@ -813,6 +849,7 @@ fn svm_token_balance_selection_to_generic(selection: &svm::TokenBalanceRequest) 
     TableSelection { filters, include }
 }
 
+#[expect(clippy::unwrap_used, reason = "Filter::contains on a non-empty Arrow array is infallible")]
 fn svm_reward_selection_to_generic(selection: &svm::RewardRequest) -> TableSelection {
     let pubkey = Arc::new(BinaryArray::from_iter_values(
         selection.pubkey.iter().map(|x| x.0.as_slice()),
@@ -823,7 +860,11 @@ fn svm_reward_selection_to_generic(selection: &svm::RewardRequest) -> TableSelec
     let filters: BTreeMap<String, Filter> = filters
         .into_iter()
         .filter_map(|(name, arr)| {
-            Filter::contains(arr).ok().map(|filter| (name.to_owned(), filter))
+            if arr.is_empty() {
+                None
+            } else {
+                Some((name.to_owned(), Filter::contains(arr).unwrap()))
+            }
         })
         .collect();
 
