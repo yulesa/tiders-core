@@ -128,7 +128,7 @@ impl<'py> pyo3::FromPyObject<'py> for DynType {
                                 .getattr("element_type")
                                 .context("Failed to retrieve Enum variant type")?;
                             if param_type.to_string().as_str() == "None" {
-                                variants.push((name, None))
+                                variants.push((name, None));
                             } else {
                                 let param_type = param_type.extract::<DynType>()?;
                                 variants.push((name, Some(param_type)));
