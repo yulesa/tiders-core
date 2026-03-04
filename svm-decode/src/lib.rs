@@ -3,7 +3,10 @@ use arrow::array::{
     builder, Array, BinaryArray, GenericBinaryArray, GenericListArray, GenericStringArray,
     LargeBinaryArray, LargeStringArray, OffsetSizeTrait, StringArray,
 };
-use arrow::{array::RecordBatch, datatypes::{DataType, Field, Schema}};
+use arrow::{
+    array::RecordBatch,
+    datatypes::{DataType, Field, Schema},
+};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use std::sync::Arc;
 mod deserialize;
@@ -258,9 +261,7 @@ pub fn decode_instructions<I: OffsetSizeTrait>(
                 }
                 continue;
             }
-            return Err(anyhow::anyhow!(
-                "Instruction data is null in row {row_idx}"
-            ));
+            return Err(anyhow::anyhow!("Instruction data is null in row {row_idx}"));
         }
 
         let instruction_data = data.value(row_idx).to_vec();
@@ -291,9 +292,7 @@ pub fn decode_instructions<I: OffsetSizeTrait>(
         let decoded_ix = match decoded_ix_result {
             Ok(ix) => ix,
             Err(e) if allow_decode_fail => {
-                log::debug!(
-                    "Error deserializing instruction in row {row_idx}: {e:?}"
-                );
+                log::debug!("Error deserializing instruction in row {row_idx}: {e:?}");
                 for v in &mut decoded_params_vec {
                     v.push(None);
                 }
@@ -431,9 +430,7 @@ pub fn decode_logs<I: OffsetSizeTrait>(
         let log_data = match log_data {
             Ok(log_data) => log_data,
             Err(e) if allow_decode_fail => {
-                log::debug!(
-                    "Error base 64 decoding log data in row {row_idx}: {e:?}"
-                );
+                log::debug!("Error base 64 decoding log data in row {row_idx}: {e:?}");
                 for v in &mut decoded_params_vec {
                     v.push(None);
                 }

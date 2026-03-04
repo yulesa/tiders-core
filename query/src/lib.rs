@@ -157,43 +157,73 @@ impl Contains {
     fn ht_from_array(array: &dyn Array) -> Result<HashTable<usize>> {
         let ht = match *array.data_type() {
             DataType::UInt8 => {
-                let array = array.as_any().downcast_ref::<UInt8Array>().context("downcast to UInt8Array failed")?;
+                let array = array
+                    .as_any()
+                    .downcast_ref::<UInt8Array>()
+                    .context("downcast to UInt8Array failed")?;
                 Self::ht_from_primitive(array)
             }
             DataType::UInt16 => {
-                let array = array.as_any().downcast_ref::<UInt16Array>().context("downcast to UInt16Array failed")?;
+                let array = array
+                    .as_any()
+                    .downcast_ref::<UInt16Array>()
+                    .context("downcast to UInt16Array failed")?;
                 Self::ht_from_primitive(array)
             }
             DataType::UInt32 => {
-                let array = array.as_any().downcast_ref::<UInt32Array>().context("downcast to UInt32Array failed")?;
+                let array = array
+                    .as_any()
+                    .downcast_ref::<UInt32Array>()
+                    .context("downcast to UInt32Array failed")?;
                 Self::ht_from_primitive(array)
             }
             DataType::UInt64 => {
-                let array = array.as_any().downcast_ref::<UInt64Array>().context("downcast to UInt64Array failed")?;
+                let array = array
+                    .as_any()
+                    .downcast_ref::<UInt64Array>()
+                    .context("downcast to UInt64Array failed")?;
                 Self::ht_from_primitive(array)
             }
             DataType::Int8 => {
-                let array = array.as_any().downcast_ref::<Int8Array>().context("downcast to Int8Array failed")?;
+                let array = array
+                    .as_any()
+                    .downcast_ref::<Int8Array>()
+                    .context("downcast to Int8Array failed")?;
                 Self::ht_from_primitive(array)
             }
             DataType::Int16 => {
-                let array = array.as_any().downcast_ref::<Int16Array>().context("downcast to Int16Array failed")?;
+                let array = array
+                    .as_any()
+                    .downcast_ref::<Int16Array>()
+                    .context("downcast to Int16Array failed")?;
                 Self::ht_from_primitive(array)
             }
             DataType::Int32 => {
-                let array = array.as_any().downcast_ref::<Int32Array>().context("downcast to Int32Array failed")?;
+                let array = array
+                    .as_any()
+                    .downcast_ref::<Int32Array>()
+                    .context("downcast to Int32Array failed")?;
                 Self::ht_from_primitive(array)
             }
             DataType::Int64 => {
-                let array = array.as_any().downcast_ref::<Int64Array>().context("downcast to Int64Array failed")?;
+                let array = array
+                    .as_any()
+                    .downcast_ref::<Int64Array>()
+                    .context("downcast to Int64Array failed")?;
                 Self::ht_from_primitive(array)
             }
             DataType::Binary => {
-                let array = array.as_any().downcast_ref::<BinaryArray>().context("downcast to BinaryArray failed")?;
+                let array = array
+                    .as_any()
+                    .downcast_ref::<BinaryArray>()
+                    .context("downcast to BinaryArray failed")?;
                 Self::ht_from_bytes(array)
             }
             DataType::Utf8 => {
-                let array = array.as_any().downcast_ref::<StringArray>().context("downcast to StringArray failed")?;
+                let array = array
+                    .as_any()
+                    .downcast_ref::<StringArray>()
+                    .context("downcast to StringArray failed")?;
                 Self::ht_from_bytes(array)
             }
             _ => {
@@ -229,57 +259,130 @@ impl Contains {
                 arr.data_type(),
             ));
         }
-        anyhow::ensure!(!self.array.is_nullable(), "filter array must not be nullable");
+        anyhow::ensure!(
+            !self.array.is_nullable(),
+            "filter array must not be nullable"
+        );
 
         let filter = match *arr.data_type() {
             DataType::UInt8 => {
-                let self_arr = self.array.as_any().downcast_ref::<UInt8Array>().context("downcast to UInt8Array failed")?;
-                let other_arr = arr.as_any().downcast_ref().context("downcast other to UInt8Array failed")?;
+                let self_arr = self
+                    .array
+                    .as_any()
+                    .downcast_ref::<UInt8Array>()
+                    .context("downcast to UInt8Array failed")?;
+                let other_arr = arr
+                    .as_any()
+                    .downcast_ref()
+                    .context("downcast other to UInt8Array failed")?;
                 self.contains_primitive(self_arr, other_arr)
             }
             DataType::UInt16 => {
-                let self_arr = self.array.as_any().downcast_ref::<UInt16Array>().context("downcast to UInt16Array failed")?;
-                let other_arr = arr.as_any().downcast_ref().context("downcast other to UInt16Array failed")?;
+                let self_arr = self
+                    .array
+                    .as_any()
+                    .downcast_ref::<UInt16Array>()
+                    .context("downcast to UInt16Array failed")?;
+                let other_arr = arr
+                    .as_any()
+                    .downcast_ref()
+                    .context("downcast other to UInt16Array failed")?;
                 self.contains_primitive(self_arr, other_arr)
             }
             DataType::UInt32 => {
-                let self_arr = self.array.as_any().downcast_ref::<UInt32Array>().context("downcast to UInt32Array failed")?;
-                let other_arr = arr.as_any().downcast_ref().context("downcast other to UInt32Array failed")?;
+                let self_arr = self
+                    .array
+                    .as_any()
+                    .downcast_ref::<UInt32Array>()
+                    .context("downcast to UInt32Array failed")?;
+                let other_arr = arr
+                    .as_any()
+                    .downcast_ref()
+                    .context("downcast other to UInt32Array failed")?;
                 self.contains_primitive(self_arr, other_arr)
             }
             DataType::UInt64 => {
-                let self_arr = self.array.as_any().downcast_ref::<UInt64Array>().context("downcast to UInt64Array failed")?;
-                let other_arr = arr.as_any().downcast_ref().context("downcast other to UInt64Array failed")?;
+                let self_arr = self
+                    .array
+                    .as_any()
+                    .downcast_ref::<UInt64Array>()
+                    .context("downcast to UInt64Array failed")?;
+                let other_arr = arr
+                    .as_any()
+                    .downcast_ref()
+                    .context("downcast other to UInt64Array failed")?;
                 self.contains_primitive(self_arr, other_arr)
             }
             DataType::Int8 => {
-                let self_arr = self.array.as_any().downcast_ref::<Int8Array>().context("downcast to Int8Array failed")?;
-                let other_arr = arr.as_any().downcast_ref().context("downcast other to Int8Array failed")?;
+                let self_arr = self
+                    .array
+                    .as_any()
+                    .downcast_ref::<Int8Array>()
+                    .context("downcast to Int8Array failed")?;
+                let other_arr = arr
+                    .as_any()
+                    .downcast_ref()
+                    .context("downcast other to Int8Array failed")?;
                 self.contains_primitive(self_arr, other_arr)
             }
             DataType::Int16 => {
-                let self_arr = self.array.as_any().downcast_ref::<Int16Array>().context("downcast to Int16Array failed")?;
-                let other_arr = arr.as_any().downcast_ref().context("downcast other to Int16Array failed")?;
+                let self_arr = self
+                    .array
+                    .as_any()
+                    .downcast_ref::<Int16Array>()
+                    .context("downcast to Int16Array failed")?;
+                let other_arr = arr
+                    .as_any()
+                    .downcast_ref()
+                    .context("downcast other to Int16Array failed")?;
                 self.contains_primitive(self_arr, other_arr)
             }
             DataType::Int32 => {
-                let self_arr = self.array.as_any().downcast_ref::<Int32Array>().context("downcast to Int32Array failed")?;
-                let other_arr = arr.as_any().downcast_ref().context("downcast other to Int32Array failed")?;
+                let self_arr = self
+                    .array
+                    .as_any()
+                    .downcast_ref::<Int32Array>()
+                    .context("downcast to Int32Array failed")?;
+                let other_arr = arr
+                    .as_any()
+                    .downcast_ref()
+                    .context("downcast other to Int32Array failed")?;
                 self.contains_primitive(self_arr, other_arr)
             }
             DataType::Int64 => {
-                let self_arr = self.array.as_any().downcast_ref::<Int64Array>().context("downcast to Int64Array failed")?;
-                let other_arr = arr.as_any().downcast_ref().context("downcast other to Int64Array failed")?;
+                let self_arr = self
+                    .array
+                    .as_any()
+                    .downcast_ref::<Int64Array>()
+                    .context("downcast to Int64Array failed")?;
+                let other_arr = arr
+                    .as_any()
+                    .downcast_ref()
+                    .context("downcast other to Int64Array failed")?;
                 self.contains_primitive(self_arr, other_arr)
             }
             DataType::Binary => {
-                let self_arr = self.array.as_any().downcast_ref::<BinaryArray>().context("downcast to BinaryArray failed")?;
-                let other_arr = arr.as_any().downcast_ref().context("downcast other to BinaryArray failed")?;
+                let self_arr = self
+                    .array
+                    .as_any()
+                    .downcast_ref::<BinaryArray>()
+                    .context("downcast to BinaryArray failed")?;
+                let other_arr = arr
+                    .as_any()
+                    .downcast_ref()
+                    .context("downcast other to BinaryArray failed")?;
                 self.contains_bytes(self_arr, other_arr)
             }
             DataType::Utf8 => {
-                let self_arr = self.array.as_any().downcast_ref::<StringArray>().context("downcast to StringArray failed")?;
-                let other_arr = arr.as_any().downcast_ref().context("downcast other to StringArray failed")?;
+                let self_arr = self
+                    .array
+                    .as_any()
+                    .downcast_ref::<StringArray>()
+                    .context("downcast to StringArray failed")?;
+                let other_arr = arr
+                    .as_any()
+                    .downcast_ref()
+                    .context("downcast other to StringArray failed")?;
                 self.contains_bytes(self_arr, other_arr)
             }
             _ => {
@@ -292,8 +395,8 @@ impl Contains {
         if let Some(nulls) = arr.nulls() {
             if nulls.null_count() > 0 {
                 let nulls = BooleanArray::from(nulls.inner().clone());
-                filter = compute::and(&filter, &nulls)
-                    .context("apply null mask to contains filter")?;
+                filter =
+                    compute::and(&filter, &nulls).context("apply null mask to contains filter")?;
             }
         }
 
@@ -376,17 +479,34 @@ impl StartsWith {
                 arr.data_type(),
             ));
         }
-        anyhow::ensure!(!self.array.is_nullable(), "filter array must not be nullable");
+        anyhow::ensure!(
+            !self.array.is_nullable(),
+            "filter array must not be nullable"
+        );
 
         let mut filter = match *arr.data_type() {
             DataType::Binary => {
-                let self_arr = self.array.as_any().downcast_ref::<BinaryArray>().context("downcast to BinaryArray failed")?;
-                let other_arr = arr.as_any().downcast_ref().context("downcast other to BinaryArray failed")?;
+                let self_arr = self
+                    .array
+                    .as_any()
+                    .downcast_ref::<BinaryArray>()
+                    .context("downcast to BinaryArray failed")?;
+                let other_arr = arr
+                    .as_any()
+                    .downcast_ref()
+                    .context("downcast other to BinaryArray failed")?;
                 Self::starts_with_bytes(self_arr, other_arr)
             }
             DataType::Utf8 => {
-                let self_arr = self.array.as_any().downcast_ref::<StringArray>().context("downcast to StringArray failed")?;
-                let other_arr = arr.as_any().downcast_ref().context("downcast other to StringArray failed")?;
+                let self_arr = self
+                    .array
+                    .as_any()
+                    .downcast_ref::<StringArray>()
+                    .context("downcast to StringArray failed")?;
+                let other_arr = arr
+                    .as_any()
+                    .downcast_ref()
+                    .context("downcast other to StringArray failed")?;
                 Self::starts_with_bytes(self_arr, other_arr)
             }
             _ => {
@@ -479,7 +599,9 @@ pub fn run_query(
 
             for f in &filters {
                 for f in f {
-                    let Some(filter) = f.get(table_name) else { continue };
+                    let Some(filter) = f.get(table_name) else {
+                        continue;
+                    };
 
                     match combined_filter.as_ref() {
                         Some(e) => {

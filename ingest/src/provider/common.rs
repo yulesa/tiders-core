@@ -1,12 +1,12 @@
 use crate::{evm, svm};
 use anyhow::{anyhow, Result};
 use arrow::array::{Array, BinaryArray, StringArray, UInt8Array};
-use tiders_query::{Filter, Include, Query as GenericQuery, TableSelection};
 use serde::Serialize;
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
+use tiders_query::{Filter, Include, Query as GenericQuery, TableSelection};
 
 pub fn evm_query_to_generic(query: &evm::Query) -> Result<GenericQuery> {
     let transaction_fields = field_selection_to_set(&query.fields.transaction);
@@ -16,7 +16,8 @@ pub fn evm_query_to_generic(query: &evm::Query) -> Result<GenericQuery> {
 
     let any_includes_transactions = query.logs.iter().any(|r| r.include_transactions)
         || query.traces.iter().any(|r| r.include_transactions);
-    if !transaction_fields.is_empty() && query.transactions.is_empty() && !any_includes_transactions {
+    if !transaction_fields.is_empty() && query.transactions.is_empty() && !any_includes_transactions
+    {
         return Err(anyhow!(
             "TransactionFields were specified but transactions will never be fetched: \
              add a TransactionRequest or set include_transactions=True on a request"
@@ -42,10 +43,7 @@ pub fn evm_query_to_generic(query: &evm::Query) -> Result<GenericQuery> {
     let any_request_includes_blocks = query.transactions.iter().any(|r| r.include_blocks)
         || query.logs.iter().any(|r| r.include_blocks)
         || query.traces.iter().any(|r| r.include_blocks);
-    if !block_fields.is_empty()
-        && !query.include_all_blocks
-        && !any_request_includes_blocks
-    {
+    if !block_fields.is_empty() && !query.include_all_blocks && !any_request_includes_blocks {
         return Err(anyhow!(
             "BlockFields were specified but blocks will never be fetched: \
              set include_all_blocks=True or set include_blocks=True on a request"
@@ -104,7 +102,10 @@ pub fn evm_query_to_generic(query: &evm::Query) -> Result<GenericQuery> {
     })
 }
 
-#[expect(clippy::unwrap_used, reason = "Filter::contains on a non-empty Arrow array is infallible")]
+#[expect(
+    clippy::unwrap_used,
+    reason = "Filter::contains on a non-empty Arrow array is infallible"
+)]
 fn evm_tx_selection_to_generic(selection: &evm::TransactionRequest) -> TableSelection {
     let from = Arc::new(BinaryArray::from_iter_values(
         selection.from_.iter().map(|x| x.0.as_slice()),
@@ -187,7 +188,10 @@ fn evm_tx_selection_to_generic(selection: &evm::TransactionRequest) -> TableSele
     TableSelection { filters, include }
 }
 
-#[expect(clippy::unwrap_used, reason = "Filter::contains on a non-empty Arrow array is infallible")]
+#[expect(
+    clippy::unwrap_used,
+    reason = "Filter::contains on a non-empty Arrow array is infallible"
+)]
 fn evm_trace_selection_to_generic(selection: &evm::TraceRequest) -> TableSelection {
     let from = Arc::new(BinaryArray::from_iter_values(
         selection.from_.iter().map(|x| x.0.as_slice()),
@@ -229,7 +233,6 @@ fn evm_trace_selection_to_generic(selection: &evm::TraceRequest) -> TableSelecti
             }
         })
         .collect();
-
 
     let mut include = Vec::with_capacity(4);
 
@@ -277,7 +280,10 @@ fn evm_trace_selection_to_generic(selection: &evm::TraceRequest) -> TableSelecti
     TableSelection { filters, include }
 }
 
-#[expect(clippy::unwrap_used, reason = "Filter::contains on a non-empty Arrow array is infallible")]
+#[expect(
+    clippy::unwrap_used,
+    reason = "Filter::contains on a non-empty Arrow array is infallible"
+)]
 fn evm_log_selection_to_generic(selection: &evm::LogRequest) -> TableSelection {
     let address = Arc::new(BinaryArray::from_iter_values(
         selection.address.iter().map(|x| x.0.as_slice()),
@@ -473,7 +479,10 @@ pub fn svm_query_to_generic(query: &svm::Query) -> GenericQuery {
     }
 }
 
-#[expect(clippy::unwrap_used, reason = "Filter construction on a non-empty Arrow array is infallible")]
+#[expect(
+    clippy::unwrap_used,
+    reason = "Filter construction on a non-empty Arrow array is infallible"
+)]
 fn svm_instruction_selection_to_generic(selection: &svm::InstructionRequest) -> TableSelection {
     let program_id = Arc::new(BinaryArray::from_iter_values(
         selection.program_id.iter().map(|x| x.0.as_slice()),
@@ -628,7 +637,10 @@ fn svm_instruction_selection_to_generic(selection: &svm::InstructionRequest) -> 
     TableSelection { filters, include }
 }
 
-#[expect(clippy::unwrap_used, reason = "Filter::contains on a non-empty Arrow array is infallible")]
+#[expect(
+    clippy::unwrap_used,
+    reason = "Filter::contains on a non-empty Arrow array is infallible"
+)]
 fn svm_transaction_selection_to_generic(selection: &svm::TransactionRequest) -> TableSelection {
     let fee_payer = Arc::new(BinaryArray::from_iter_values(
         selection.fee_payer.iter().map(|x| x.0.as_slice()),
@@ -676,7 +688,10 @@ fn svm_transaction_selection_to_generic(selection: &svm::TransactionRequest) -> 
     TableSelection { filters, include }
 }
 
-#[expect(clippy::unwrap_used, reason = "Filter::contains on a non-empty Arrow array is infallible")]
+#[expect(
+    clippy::unwrap_used,
+    reason = "Filter::contains on a non-empty Arrow array is infallible"
+)]
 fn svm_log_selection_to_generic(selection: &svm::LogRequest) -> TableSelection {
     let program_id = Arc::new(BinaryArray::from_iter_values(
         selection.program_id.iter().map(|x| x.0.as_slice()),
@@ -727,7 +742,10 @@ fn svm_log_selection_to_generic(selection: &svm::LogRequest) -> TableSelection {
     TableSelection { filters, include }
 }
 
-#[expect(clippy::unwrap_used, reason = "Filter::contains on a non-empty Arrow array is infallible")]
+#[expect(
+    clippy::unwrap_used,
+    reason = "Filter::contains on a non-empty Arrow array is infallible"
+)]
 fn svm_balance_selection_to_generic(selection: &svm::BalanceRequest) -> TableSelection {
     let account = Arc::new(BinaryArray::from_iter_values(
         selection.account.iter().map(|x| x.0.as_slice()),
@@ -775,7 +793,10 @@ fn svm_balance_selection_to_generic(selection: &svm::BalanceRequest) -> TableSel
     TableSelection { filters, include }
 }
 
-#[expect(clippy::unwrap_used, reason = "Filter::contains on a non-empty Arrow array is infallible")]
+#[expect(
+    clippy::unwrap_used,
+    reason = "Filter::contains on a non-empty Arrow array is infallible"
+)]
 fn svm_token_balance_selection_to_generic(selection: &svm::TokenBalanceRequest) -> TableSelection {
     let account = Arc::new(BinaryArray::from_iter_values(
         selection.account.iter().map(|x| x.0.as_slice()),
@@ -849,7 +870,10 @@ fn svm_token_balance_selection_to_generic(selection: &svm::TokenBalanceRequest) 
     TableSelection { filters, include }
 }
 
-#[expect(clippy::unwrap_used, reason = "Filter::contains on a non-empty Arrow array is infallible")]
+#[expect(
+    clippy::unwrap_used,
+    reason = "Filter::contains on a non-empty Arrow array is infallible"
+)]
 fn svm_reward_selection_to_generic(selection: &svm::RewardRequest) -> TableSelection {
     let pubkey = Arc::new(BinaryArray::from_iter_values(
         selection.pubkey.iter().map(|x| x.0.as_slice()),
@@ -881,7 +905,10 @@ fn svm_reward_selection_to_generic(selection: &svm::RewardRequest) -> TableSelec
     TableSelection { filters, include }
 }
 
-#[expect(clippy::unwrap_used, reason = "field_selection is a plain struct of bools, serialization and object/bool access are infallible")]
+#[expect(
+    clippy::unwrap_used,
+    reason = "field_selection is a plain struct of bools, serialization and object/bool access are infallible"
+)]
 pub fn field_selection_to_set<S: Serialize>(field_selection: &S) -> BTreeSet<String> {
     let json = serde_json::to_value(field_selection).unwrap();
     let json = json.as_object().unwrap();

@@ -127,15 +127,17 @@ impl<'py> pyo3::FromPyObject<'py> for DynType {
                             let param_type = variant
                                 .getattr("element_type")
                                 .context("Failed to retrieve Enum variant type")?;
-                            if param_type.to_string().as_str() == "None" { variants.push((name, None)) } else {
-                                 let param_type = param_type.extract::<DynType>()?;
-                                 variants.push((name, Some(param_type)));
-                             }
+                            if param_type.to_string().as_str() == "None" {
+                                variants.push((name, None))
+                            } else {
+                                let param_type = param_type.extract::<DynType>()?;
+                                variants.push((name, Some(param_type)));
+                            }
                         }
                         Err(e) => {
                             return Err(anyhow!(
-                                "Could not convert Enum variants into an iterator. Error: {e:?}")
-                            )
+                                "Could not convert Enum variants into an iterator. Error: {e:?}"
+                            ))
                             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
                         }
                     }
@@ -384,7 +386,9 @@ fn deserialize_value<'a>(param_type: &DynType, data: &'a [u8]) -> Result<(DynVal
                     data.len()
                 ));
             }
-            let length = u32::from_le_bytes(data[..4].try_into().context("array length conversion")?) as usize;
+            let length =
+                u32::from_le_bytes(data[..4].try_into().context("array length conversion")?)
+                    as usize;
             let mut remaining_data = &data[4..];
 
             let mut values = Vec::with_capacity(length);

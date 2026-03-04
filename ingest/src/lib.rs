@@ -1,5 +1,11 @@
-#![expect(clippy::should_implement_trait, reason = "LogKind::from_str is a constructor pattern, not Trait impl")]
-#![expect(clippy::field_reassign_with_default, reason = "ProviderConfig is built by setting fields after construction")]
+#![expect(
+    clippy::should_implement_trait,
+    reason = "LogKind::from_str is a constructor pattern, not Trait impl"
+)]
+#![expect(
+    clippy::field_reassign_with_default,
+    reason = "ProviderConfig is built by setting fields after construction"
+)]
 
 use std::{collections::BTreeMap, pin::Pin, sync::Arc};
 
@@ -155,8 +161,7 @@ fn make_req_fields<T: DeserializeOwned>(query: &tiders_query::Query) -> Result<T
 pub async fn start_stream(provider_config: ProviderConfig, mut query: Query) -> Result<DataStream> {
     let generic_query = match &mut query {
         Query::Evm(evm_query) => {
-            let generic_query =
-                evm_query_to_generic(evm_query).context("validate evm query")?;
+            let generic_query = evm_query_to_generic(evm_query).context("validate evm query")?;
 
             evm_query.fields = make_req_fields(&generic_query).context("make req fields")?;
 
@@ -179,8 +184,9 @@ pub async fn start_stream(provider_config: ProviderConfig, mut query: Query) -> 
         ProviderKind::Hypersync => provider::hypersync::start_stream(provider_config, query)
             .await
             .context("start hypersync stream")?,
-        ProviderKind::Rpc => provider::rpc::start_stream(&provider_config, query)
-            .context("start rpc stream")?,
+        ProviderKind::Rpc => {
+            provider::rpc::start_stream(&provider_config, query).context("start rpc stream")?
+        }
     };
 
     let stream = stream.then(move |res| {

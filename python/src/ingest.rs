@@ -30,14 +30,15 @@ impl ResponseStream {
     }
 
     pub async fn next(&mut self) -> PyResult<Option<BTreeMap<String, PyObject>>> {
-        let Some(inner) = self.inner.as_mut() 
-        else {
+        let Some(inner) = self.inner.as_mut() else {
             return Ok(None);
         };
 
-        let next: BTreeMap<String, RecordBatch> = if let Some(n) = inner.next().await { n.context("get next item from inner stream")? } else {
-             self.inner = None;
-             return Ok(None);
+        let next: BTreeMap<String, RecordBatch> = if let Some(n) = inner.next().await {
+            n.context("get next item from inner stream")?
+        } else {
+            self.inner = None;
+            return Ok(None);
         };
 
         let mut out = BTreeMap::new();

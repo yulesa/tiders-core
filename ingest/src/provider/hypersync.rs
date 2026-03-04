@@ -1,16 +1,16 @@
 use super::common::field_selection_to_set;
 use crate::{evm, DataStream, ProviderConfig, Query};
 use anyhow::{anyhow, Context, Result};
-use log::warn;
 use arrow::array::ListBuilder;
 use arrow::array::{builder, new_null_array, Array, BinaryArray, BinaryBuilder, RecordBatch};
 use arrow::datatypes::DataType;
-use tiders_evm_schema::AccessListBuilder;
 use hypersync_client::format::AccessList;
-use hypersync_client::StreamConfig;
 use hypersync_client::net_types::{self as hypersync_nt, JoinMode};
+use hypersync_client::StreamConfig;
+use log::warn;
 use std::sync::Arc;
 use std::{collections::BTreeMap, num::NonZeroU64, time::Duration};
+use tiders_evm_schema::AccessListBuilder;
 use tokio::sync::mpsc;
 
 pub fn query_to_hypersync(query: &evm::Query) -> Result<hypersync_nt::Query> {
@@ -399,7 +399,9 @@ fn map_hypersync_binary_array_to_access_list_elem(
                     {
                         let b = access_list_items_builder
                             .field_builder::<builder::ListBuilder<builder::BinaryBuilder>>(1)
-                            .context("AccessListBuilder field 1 is not ListBuilder<BinaryBuilder>")?;
+                            .context(
+                                "AccessListBuilder field 1 is not ListBuilder<BinaryBuilder>",
+                            )?;
 
                         let v = item.storage_keys;
                         let mut keys = vec![];
@@ -485,7 +487,11 @@ fn map_blocks(blocks: &[hypersync_client::ArrowBatch]) -> Result<RecordBatch> {
                 map_hypersync_binary_array_to_decimal256(&batch, "gas_used", num_rows)?,
                 map_hypersync_binary_array_to_decimal256(&batch, "timestamp", num_rows)?,
                 new_null_array(
-                    schema.column_with_name("uncles").context("blocks schema missing 'uncles' field")?.1.data_type(),
+                    schema
+                        .column_with_name("uncles")
+                        .context("blocks schema missing 'uncles' field")?
+                        .1
+                        .data_type(),
                     num_rows,
                 ),
                 map_hypersync_binary_array_to_decimal256(&batch, "base_fee_per_gas", num_rows)?,
@@ -710,7 +716,9 @@ fn polars_arrow_to_arrow_rs(
         ))
     };
 
-    let mut arr_data = unsafe { arrow::ffi::from_ffi(arr, &schema).context("polars arrow FFI conversion failed")? };
+    let mut arr_data = unsafe {
+        arrow::ffi::from_ffi(arr, &schema).context("polars arrow FFI conversion failed")?
+    };
 
     arr_data.align_buffers();
 

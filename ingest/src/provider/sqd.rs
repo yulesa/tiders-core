@@ -1,7 +1,7 @@
 use crate::{evm, svm, DataStream, ProviderConfig, Query};
 use anyhow::{anyhow, Context, Result};
-use log::warn;
 use futures_lite::StreamExt;
+use log::warn;
 use std::collections::BTreeMap;
 
 use std::sync::Arc;

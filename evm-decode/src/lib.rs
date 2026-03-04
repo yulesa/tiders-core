@@ -189,15 +189,13 @@ pub fn decode_events(
                 .as_any()
                 .downcast_ref::<BinaryArray>()
                 .context("downcast to BinaryArray")?;
-            decode_topic(sol_type, arr, allow_decode_fail, &mut arrays)
-                .context("decode topic")?;
+            decode_topic(sol_type, arr, allow_decode_fail, &mut arrays).context("decode topic")?;
         } else if col.data_type() == &DataType::LargeBinary {
             let arr = col
                 .as_any()
                 .downcast_ref::<LargeBinaryArray>()
                 .context("downcast to LargeBinaryArray")?;
-            decode_topic(sol_type, arr, allow_decode_fail, &mut arrays)
-                .context("decode topic")?;
+            decode_topic(sol_type, arr, allow_decode_fail, &mut arrays).context("decode topic")?;
         }
     }
 
@@ -210,15 +208,13 @@ pub fn decode_events(
             .as_any()
             .downcast_ref::<BinaryArray>()
             .context("downcast to BinaryArray")?;
-        decode_body(&body_sol_type, arr, allow_decode_fail, &mut arrays)
-            .context("decode body")?;
+        decode_body(&body_sol_type, arr, allow_decode_fail, &mut arrays).context("decode body")?;
     } else if body_col.data_type() == &DataType::LargeBinary {
         let arr = body_col
             .as_any()
             .downcast_ref::<LargeBinaryArray>()
             .context("downcast to LargeBinaryArray")?;
-        decode_body(&body_sol_type, arr, allow_decode_fail, &mut arrays)
-            .context("decode body")?;
+        decode_body(&body_sol_type, arr, allow_decode_fail, &mut arrays).context("decode body")?;
     }
 
     RecordBatch::try_new(Arc::new(schema), arrays).context("construct arrow batch")
@@ -344,9 +340,7 @@ fn resolve_event_signature(signature: &str) -> Result<(alloy_json_abi::Event, Dy
 fn to_arrow_dtype(sol_type: &DynSolType) -> Result<DataType> {
     match sol_type {
         DynSolType::Bool => Ok(DataType::Boolean),
-        DynSolType::Bytes | DynSolType::Address | DynSolType::FixedBytes(_) => {
-            Ok(DataType::Binary)
-        }
+        DynSolType::Bytes | DynSolType::Address | DynSolType::FixedBytes(_) => Ok(DataType::Binary),
         DynSolType::String => Ok(DataType::Utf8),
         DynSolType::Int(num_bits) => Ok(num_bits_to_int_type(*num_bits)),
         DynSolType::Uint(num_bits) => Ok(num_bits_to_uint_type(*num_bits)),

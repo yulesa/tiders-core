@@ -187,7 +187,10 @@ pub fn cast_schema_by_type(
     Ok(Schema::new(fields))
 }
 
-#[expect(clippy::unwrap_used, reason = "downcast is guaranteed by prior data type check")]
+#[expect(
+    clippy::unwrap_used,
+    reason = "downcast is guaranteed by prior data type check"
+)]
 pub fn base58_encode(data: &RecordBatch) -> Result<RecordBatch> {
     let schema = schema_binary_to_string(data.schema_ref());
     let mut columns = Vec::<Arc<dyn Array>>::with_capacity(data.columns().len());
@@ -232,7 +235,10 @@ pub fn base58_encode_column<I: OffsetSizeTrait>(
     arr.finish()
 }
 
-#[expect(clippy::unwrap_used, reason = "downcast is guaranteed by prior data type check")]
+#[expect(
+    clippy::unwrap_used,
+    reason = "downcast is guaranteed by prior data type check"
+)]
 pub fn hex_encode<const PREFIXED: bool>(data: &RecordBatch) -> Result<RecordBatch> {
     let schema = schema_binary_to_string(data.schema_ref());
     let mut columns = Vec::<Arc<dyn Array>>::with_capacity(data.columns().len());
@@ -403,7 +409,8 @@ pub fn u256_column_from_binary<I: OffsetSizeTrait>(
         }
     }
 
-    Ok(arr.with_precision_and_scale(76, 0)
+    Ok(arr
+        .with_precision_and_scale(76, 0)
         .context("set precision and scale for Decimal256")?
         .finish())
 }
@@ -428,7 +435,10 @@ pub fn u256_column_to_binary(col: &Decimal256Array) -> Result<BinaryArray> {
 }
 
 /// Converts all Decimal256 (U256) columns in the batch to big endian binary values
-#[expect(clippy::unwrap_used, reason = "downcast is guaranteed by prior data type check")]
+#[expect(
+    clippy::unwrap_used,
+    reason = "downcast is guaranteed by prior data type check"
+)]
 pub fn u256_to_binary(data: &RecordBatch) -> Result<RecordBatch> {
     let schema = schema_decimal256_to_binary(data.schema_ref());
     let mut columns = Vec::<Arc<dyn Array>>::with_capacity(data.columns().len());

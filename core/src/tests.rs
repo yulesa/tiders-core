@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use tiders_evm_decode::{decode_events, signature_to_topic0};
-use tiders_ingest::evm::{Address, Topic};
 use futures_lite::StreamExt;
 use hypersync_client::{self, ClientConfig, StreamConfig};
+use tiders_evm_decode::{decode_events, signature_to_topic0};
+use tiders_ingest::evm::{Address, Topic};
 
 async fn erc20(cfg: tiders_ingest::ProviderConfig, query: tiders_ingest::Query) {
     let signature = "Transfer(address indexed from, address indexed to, uint256 amount)";

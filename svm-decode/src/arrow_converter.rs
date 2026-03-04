@@ -4,7 +4,10 @@ use arrow::array::{Array, ListArray};
 use arrow::{
     array::{builder, ArrowPrimitiveType, RecordBatch, StructArray},
     buffer::{NullBuffer, OffsetBuffer},
-    datatypes::{Int8Type, Int16Type, Int32Type, Int64Type, UInt8Type, UInt16Type, UInt32Type, UInt64Type, DataType, Field, Fields, Decimal128Type, Schema},
+    datatypes::{
+        DataType, Decimal128Type, Field, Fields, Int16Type, Int32Type, Int64Type, Int8Type, Schema,
+        UInt16Type, UInt32Type, UInt64Type, UInt8Type,
+    },
 };
 use std::sync::Arc;
 
@@ -237,8 +240,9 @@ fn to_decimal128(values: &[Option<DynValue>]) -> Result<Arc<dyn Array>> {
             Some(v) => match v {
                 DynValue::I128(v) => builder.append_value(*v),
                 DynValue::U128(v) => {
-                    let val = i128::try_from(*v)
-                        .with_context(|| format!("Value {v} exceeds i128::MAX for Decimal128 conversion"))?;
+                    let val = i128::try_from(*v).with_context(|| {
+                        format!("Value {v} exceeds i128::MAX for Decimal128 conversion")
+                    })?;
                     builder.append_value(val);
                 }
                 _ => {
@@ -336,18 +340,20 @@ fn to_list(param_type: &DynType, param_values: Vec<Option<DynValue>>) -> Result<
     let mut all_valid = true;
 
     for val in param_values {
-        if let Some(val) = val { match val {
-            DynValue::Array(inner_vals) => {
-                lengths.push(inner_vals.len());
-                inner_values.extend(inner_vals.into_iter().map(Some));
-                validity.push(true);
+        if let Some(val) = val {
+            match val {
+                DynValue::Array(inner_vals) => {
+                    lengths.push(inner_vals.len());
+                    inner_values.extend(inner_vals.into_iter().map(Some));
+                    validity.push(true);
+                }
+                _ => {
+                    return Err(anyhow!(
+                        "found unexpected value. Expected list type, Found: {val:?}"
+                    ));
+                }
             }
-            _ => {
-                return Err(anyhow!(
-                    "found unexpected value. Expected list type, Found: {val:?}"
-                ));
-            }
-        } } else {
+        } else {
             lengths.push(0);
             validity.push(false);
             all_valid = false;
@@ -382,7 +388,10 @@ fn to_list(param_type: &DynType, param_values: Vec<Option<DynValue>>) -> Result<
 ///
 /// # Returns
 /// * `Result<Arc<dyn Array>>` - The converted Arrow array
-#[expect(clippy::cast_possible_truncation, reason = "enum variant count is bounded to fit in u8")]
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "enum variant count is bounded to fit in u8"
+)]
 fn to_enum(
     variants: &[(String, Option<DynType>)],
     param_values: Vec<Option<DynValue>>,
@@ -390,41 +399,42 @@ fn to_enum(
     let mut values = Vec::with_capacity(param_values.len());
 
     // Helper closure that creates a struct representation for an enum variant
-    let make_struct = |variant_name: String, inner_val: Option<Box<DynValue>>| -> Result<DynValue> {
-        let selected_variant_idx = variants
-            .iter()
-            .position(|(name, _)| name == &variant_name)
-            .ok_or_else(|| anyhow!("Variant {variant_name} not found in schema"))
-            .map(|i| i as u8)?;
-        let struct_inner = variants
-            .iter()
-            .map(|(name, dt)| {
-                let is_selected_variant = name == &variant_name;
-                match dt {
-                    Some(_) => {
-                        let data_value = if is_selected_variant {
-                            inner_val
-                                .as_ref()
-                                .map_or(DynValue::Option(None), |boxed| DynValue::Option(Some(Box::new((**boxed).clone()))))
-                        } else {
-                            DynValue::Option(None)
-                        };
+    let make_struct =
+        |variant_name: String, inner_val: Option<Box<DynValue>>| -> Result<DynValue> {
+            let selected_variant_idx = variants
+                .iter()
+                .position(|(name, _)| name == &variant_name)
+                .ok_or_else(|| anyhow!("Variant {variant_name} not found in schema"))
+                .map(|i| i as u8)?;
+            let struct_inner = variants
+                .iter()
+                .map(|(name, dt)| {
+                    let is_selected_variant = name == &variant_name;
+                    match dt {
+                        Some(_) => {
+                            let data_value = if is_selected_variant {
+                                inner_val.as_ref().map_or(DynValue::Option(None), |boxed| {
+                                    DynValue::Option(Some(Box::new((**boxed).clone())))
+                                })
+                            } else {
+                                DynValue::Option(None)
+                            };
 
-                        (name.clone(), data_value)
+                            (name.clone(), data_value)
+                        }
+                        None => (name.clone(), DynValue::Option(None)),
                     }
-                    None => (name.clone(), DynValue::Option(None)),
-                }
-            })
-            .collect::<Vec<_>>();
+                })
+                .collect::<Vec<_>>();
 
-        Ok(DynValue::Struct(vec![
-            (
-                "variant_index".to_string(),
-                DynValue::U8(selected_variant_idx),
-            ),
-            ("variant_data".to_string(), DynValue::Struct(struct_inner)),
-        ]))
-    };
+            Ok(DynValue::Struct(vec![
+                (
+                    "variant_index".to_string(),
+                    DynValue::U8(selected_variant_idx),
+                ),
+                ("variant_data".to_string(), DynValue::Struct(struct_inner)),
+            ]))
+        };
 
     for val in param_values {
         match val {

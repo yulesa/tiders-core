@@ -16,7 +16,10 @@ mod ingest;
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
-#[expect(clippy::unwrap_used, reason = "Runtime creation is essential and only happens once at startup")]
+#[expect(
+    clippy::unwrap_used,
+    reason = "Runtime creation is essential and only happens once at startup"
+)]
 static TOKIO_RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
