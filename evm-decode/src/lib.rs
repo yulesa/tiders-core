@@ -5,10 +5,11 @@ use alloy_primitives::{I256, U256};
 use anyhow::{anyhow, Context, Result};
 use arrow::{
     array::{
-        builder, Array, ArrowPrimitiveType, BinaryArray, GenericBinaryArray, LargeBinaryArray,
-        ListArray, OffsetSizeTrait, RecordBatch, StructArray,
+        builder, Array, ArrowPrimitiveType, BinaryArray, BooleanArray, GenericBinaryArray,
+        LargeBinaryArray, ListArray, OffsetSizeTrait, RecordBatch, StructArray,
     },
     buffer::{NullBuffer, OffsetBuffer},
+    compute,
     datatypes::{
         DataType, Field, Fields, Int16Type, Int32Type, Int64Type, Int8Type, Schema, UInt16Type,
         UInt32Type, UInt64Type, UInt8Type,
@@ -161,19 +162,35 @@ fn resolve_function_signature(signature: &str) -> Result<(alloy_json_abi::Functi
 /// Output Arrow schema is auto generated based on the event signature.
 /// Handles any level of nesting with Lists/Structs.
 ///
-/// Writes `null` for event data rows that fail to decode if `allow_decode_fail` is set to `true`.
+/// When `filter_by_topic0` is `true`, only rows whose `topic0` column matches the
+/// event's selector are decoded. Non-matching rows are silently filtered out.
+///
+/// When `hstack` is `true`, the original input columns (after any topic0 filtering)
+/// are appended alongside the decoded columns in the output.
+///
+/// Writes `null` for data rows that fail to decode if `allow_decode_fail` is set to `true`.
 /// Errors when a row fails to decode if `allow_decode_fail` is set to `false`.
 pub fn decode_events(
     signature: &str,
     data: &RecordBatch,
     allow_decode_fail: bool,
+    filter_by_topic0: bool,
+    hstack: bool,
 ) -> Result<RecordBatch> {
     let (event, resolved) = resolve_event_signature(signature)?;
+
+    // Optionally filter input to only rows whose topic0 matches the event selector.
+    let data = if filter_by_topic0 {
+        filter_by_topic0_impl(&event, data)?
+    } else {
+        data.clone()
+    };
 
     let schema = event_signature_to_arrow_schema_impl(&event, &resolved)
         .context("convert event signature to arrow schema")?;
 
-    let mut arrays: Vec<Arc<dyn Array + 'static>> = Vec::with_capacity(schema.fields().len());
+    let mut fields: Vec<Arc<Field>> = schema.fields().iter().cloned().collect();
+    let mut arrays: Vec<Arc<dyn Array + 'static>> = Vec::with_capacity(fields.len());
 
     for (sol_type, topic_name) in resolved
         .indexed()
@@ -217,7 +234,15 @@ pub fn decode_events(
         decode_body(&body_sol_type, arr, allow_decode_fail, &mut arrays).context("decode body")?;
     }
 
-    RecordBatch::try_new(Arc::new(schema), arrays).context("construct arrow batch")
+    if hstack {
+        for (i, col) in data.columns().iter().enumerate() {
+            fields.push(data.schema().field(i).clone().into());
+            arrays.push(col.clone());
+        }
+    }
+
+    let output_schema = Schema::new(fields);
+    RecordBatch::try_new(Arc::new(output_schema), arrays).context("construct arrow batch")
 }
 
 fn decode_body<I: OffsetSizeTrait>(
@@ -337,6 +362,57 @@ fn resolve_event_signature(signature: &str) -> Result<(alloy_json_abi::Event, Dy
     Ok((event, resolved))
 }
 
+/// Filters a RecordBatch to only rows where the `topic0` column matches the
+/// event's selector hash. If `topic0` column is not present, returns the data
+/// unchanged. Non-matching rows are always silently filtered out.
+fn filter_by_topic0_impl(event: &alloy_json_abi::Event, data: &RecordBatch) -> Result<RecordBatch> {
+    let Some(topic0_col) = data.column_by_name("topic0") else {
+        return Ok(data.clone());
+    };
+
+    let selector = event.selector();
+
+    let mask =
+        build_topic0_mask(topic0_col, selector.as_slice()).context("build topic0 filter mask")?;
+
+    let non_matching = mask.iter().filter(|v| !v.unwrap_or(false)).count();
+    if non_matching > 0 {
+        log::debug!(
+            "filtering out {non_matching} events whose topic0 does not match '{}'",
+            event.full_signature()
+        );
+    }
+
+    compute::filter_record_batch(data, &mask).context("filter record batch by topic0")
+}
+
+fn build_topic0_mask(col: &dyn Array, selector: &[u8]) -> Result<BooleanArray> {
+    if col.data_type() == &DataType::Binary {
+        let arr = col
+            .as_any()
+            .downcast_ref::<BinaryArray>()
+            .context("downcast topic0 to BinaryArray")?;
+        Ok(arr
+            .iter()
+            .map(|v| v.map(|b| b == selector))
+            .collect::<BooleanArray>())
+    } else if col.data_type() == &DataType::LargeBinary {
+        let arr = col
+            .as_any()
+            .downcast_ref::<LargeBinaryArray>()
+            .context("downcast topic0 to LargeBinaryArray")?;
+        Ok(arr
+            .iter()
+            .map(|v| v.map(|b| b == selector))
+            .collect::<BooleanArray>())
+    } else {
+        Err(anyhow!(
+            "unexpected data type for topic0 column: {:?}",
+            col.data_type()
+        ))
+    }
+}
+
 fn to_arrow_dtype(sol_type: &DynSolType) -> Result<DataType> {
     match sol_type {
         DynSolType::Bool => Ok(DataType::Boolean),
@@ -429,11 +505,11 @@ fn to_int(
     allow_decode_fail: bool,
 ) -> Result<Arc<dyn Array>> {
     match num_bits_to_int_type(num_bits) {
-        DataType::Int8 => to_int_impl::<Int8Type>(num_bits, sol_values),
-        DataType::Int16 => to_int_impl::<Int16Type>(num_bits, sol_values),
-        DataType::Int32 => to_int_impl::<Int32Type>(num_bits, sol_values),
-        DataType::Int64 => to_int_impl::<Int64Type>(num_bits, sol_values),
-        DataType::Decimal128(_, _) => to_decimal128(num_bits, sol_values),
+        DataType::Int8 => to_int_impl::<Int8Type>(num_bits, sol_values, allow_decode_fail),
+        DataType::Int16 => to_int_impl::<Int16Type>(num_bits, sol_values, allow_decode_fail),
+        DataType::Int32 => to_int_impl::<Int32Type>(num_bits, sol_values, allow_decode_fail),
+        DataType::Int64 => to_int_impl::<Int64Type>(num_bits, sol_values, allow_decode_fail),
+        DataType::Decimal128(_, _) => to_decimal128(num_bits, sol_values, allow_decode_fail),
         DataType::Decimal256(_, _) => to_decimal256(num_bits, sol_values, allow_decode_fail),
         dt => Err(anyhow!("unexpected int data type: {dt:?}")),
     }
@@ -444,18 +520,22 @@ fn to_uint(
     sol_values: &[Option<DynSolValue>],
     allow_decode_fail: bool,
 ) -> Result<Arc<dyn Array>> {
-    match num_bits_to_int_type(num_bits) {
-        DataType::UInt8 => to_int_impl::<UInt8Type>(num_bits, sol_values),
-        DataType::UInt16 => to_int_impl::<UInt16Type>(num_bits, sol_values),
-        DataType::UInt32 => to_int_impl::<UInt32Type>(num_bits, sol_values),
-        DataType::UInt64 => to_int_impl::<UInt64Type>(num_bits, sol_values),
-        DataType::Decimal128(_, _) => to_decimal128(num_bits, sol_values),
+    match num_bits_to_uint_type(num_bits) {
+        DataType::UInt8 => to_int_impl::<UInt8Type>(num_bits, sol_values, allow_decode_fail),
+        DataType::UInt16 => to_int_impl::<UInt16Type>(num_bits, sol_values, allow_decode_fail),
+        DataType::UInt32 => to_int_impl::<UInt32Type>(num_bits, sol_values, allow_decode_fail),
+        DataType::UInt64 => to_int_impl::<UInt64Type>(num_bits, sol_values, allow_decode_fail),
+        DataType::Decimal128(_, _) => to_decimal128(num_bits, sol_values, allow_decode_fail),
         DataType::Decimal256(_, _) => to_decimal256(num_bits, sol_values, allow_decode_fail),
         dt => Err(anyhow!("unexpected uint data type: {dt:?}")),
     }
 }
 
-fn to_decimal128(num_bits: usize, sol_values: &[Option<DynSolValue>]) -> Result<Arc<dyn Array>> {
+fn to_decimal128(
+    num_bits: usize,
+    sol_values: &[Option<DynSolValue>],
+    allow_decode_fail: bool,
+) -> Result<Arc<dyn Array>> {
     let mut builder = builder::Decimal128Builder::new();
 
     for val in sol_values {
@@ -466,22 +546,36 @@ fn to_decimal128(num_bits: usize, sol_values: &[Option<DynSolValue>]) -> Result<
                         return Err(anyhow!("bit width mismatch: expected {num_bits}, got {nb}"));
                     }
 
-                    let v = i128::try_from(*v).context("convert to i128")?;
-
-                    builder.append_value(v);
+                    match i128::try_from(*v) {
+                        Ok(v) => builder.append_value(v),
+                        Err(e) if allow_decode_fail => {
+                            log::debug!("failed to convert int value to i128: {e}");
+                            builder.append_null();
+                        }
+                        Err(e) => {
+                            return Err(anyhow!("convert to i128: {e}"));
+                        }
+                    }
                 }
                 DynSolValue::Uint(v, nb) => {
                     if num_bits != *nb {
                         return Err(anyhow!("bit width mismatch: expected {num_bits}, got {nb}"));
                     }
 
-                    let v = i128::try_from(*v).context("convert to i128")?;
-
-                    builder.append_value(v);
+                    match i128::try_from(*v) {
+                        Ok(v) => builder.append_value(v),
+                        Err(e) if allow_decode_fail => {
+                            log::debug!("failed to convert uint value to i128: {e}");
+                            builder.append_null();
+                        }
+                        Err(e) => {
+                            return Err(anyhow!("convert to i128: {e}"));
+                        }
+                    }
                 }
                 _ => {
                     return Err(anyhow!(
-                        "found unexpected value. Expected: bool, Found: {val:?}"
+                        "found unexpected value. Expected: int/uint, Found: {val:?}"
                     ));
                 }
             },
@@ -550,7 +644,11 @@ fn to_decimal256(
     Ok(Arc::new(builder.finish()))
 }
 
-fn to_int_impl<T>(num_bits: usize, sol_values: &[Option<DynSolValue>]) -> Result<Arc<dyn Array>>
+fn to_int_impl<T>(
+    num_bits: usize,
+    sol_values: &[Option<DynSolValue>],
+    allow_decode_fail: bool,
+) -> Result<Arc<dyn Array>>
 where
     T: ArrowPrimitiveType,
     T::Native: TryFrom<I256> + TryFrom<U256>,
@@ -564,21 +662,35 @@ where
                     if num_bits != *nb {
                         return Err(anyhow!("bit width mismatch: expected {num_bits}, got {nb}"));
                     }
-                    let native = T::Native::try_from(*v)
-                        .map_err(|_| anyhow!("failed to convert int value to native type"))?;
-                    builder.append_value(native);
+                    match T::Native::try_from(*v) {
+                        Ok(native) => builder.append_value(native),
+                        Err(_) if allow_decode_fail => {
+                            log::debug!("failed to convert int value {v} to native type");
+                            builder.append_null();
+                        }
+                        Err(_) => {
+                            return Err(anyhow!("failed to convert int value to native type"));
+                        }
+                    }
                 }
                 DynSolValue::Uint(v, nb) => {
                     if num_bits != *nb {
                         return Err(anyhow!("bit width mismatch: expected {num_bits}, got {nb}"));
                     }
-                    let native = T::Native::try_from(*v)
-                        .map_err(|_| anyhow!("failed to convert uint value to native type"))?;
-                    builder.append_value(native);
+                    match T::Native::try_from(*v) {
+                        Ok(native) => builder.append_value(native),
+                        Err(_) if allow_decode_fail => {
+                            log::debug!("failed to convert uint value {v} to native type");
+                            builder.append_null();
+                        }
+                        Err(_) => {
+                            return Err(anyhow!("failed to convert uint value to native type"));
+                        }
+                    }
                 }
                 _ => {
                     return Err(anyhow!(
-                        "found unexpected value. Expected: bool, Found: {val:?}"
+                        "found unexpected value. Expected: int/uint, Found: {val:?}"
                     ));
                 }
             },
@@ -789,6 +901,103 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_int_overflow_with_allow_decode_fail() {
+        // When decoding all pool events without topic filtering, a Swap decoder
+        // may successfully ABI-decode body data from a different event type,
+        // producing an int24 value that doesn't fit in i32. With allow_decode_fail=true
+        // this should produce null instead of erroring.
+        let sol_values = vec![Some(DynSolValue::Int(I256::MAX, 24))];
+        let result = to_int_impl::<Int32Type>(24, &sol_values, true);
+        assert!(result.is_ok());
+        let arr = result.unwrap();
+        assert!(arr.is_null(0));
+
+        // Without allow_decode_fail, it should error
+        let sol_values = vec![Some(DynSolValue::Int(I256::MAX, 24))];
+        let result = to_int_impl::<Int32Type>(24, &sol_values, false);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_topic0_filtering_with_allow_decode_fail() {
+        use arrow::array::GenericBinaryBuilder;
+
+        let swap_sig = "Swap(address indexed sender, address indexed recipient, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)";
+        let mint_sig = "Mint(address sender, address indexed owner, int24 indexed tickLower, int24 indexed tickUpper, uint128 amount, uint256 amount0, uint256 amount1)";
+
+        let swap_selector = signature_to_topic0(swap_sig).unwrap();
+        let mint_selector = signature_to_topic0(mint_sig).unwrap();
+
+        // Build a batch with 2 rows: one Swap event and one Mint event
+        let mut topic0_builder = GenericBinaryBuilder::<i32>::new();
+        let mut topic1_builder = GenericBinaryBuilder::<i32>::new();
+        let mut topic2_builder = GenericBinaryBuilder::<i32>::new();
+        let mut topic3_builder = GenericBinaryBuilder::<i32>::new();
+        let mut data_builder = GenericBinaryBuilder::<i32>::new();
+
+        let addr = [0u8; 32];
+
+        // Row 0: Swap event
+        topic0_builder.append_value(swap_selector);
+        topic1_builder.append_value(addr);
+        topic2_builder.append_value(addr);
+        topic3_builder.append_null();
+        let amount0 = I256::try_from(-1000i64).unwrap();
+        let amount1 = I256::try_from(2000i64).unwrap();
+        let sqrt_price: U256 = U256::from(1u64) << 96;
+        let liquidity = U256::from(1000000u64);
+        let tick = I256::try_from(-100i64).unwrap();
+        let mut swap_body = Vec::new();
+        swap_body.extend_from_slice(&amount0.to_be_bytes::<32>());
+        swap_body.extend_from_slice(&amount1.to_be_bytes::<32>());
+        swap_body.extend_from_slice(&sqrt_price.to_be_bytes::<32>());
+        swap_body.extend_from_slice(&liquidity.to_be_bytes::<32>());
+        swap_body.extend_from_slice(&tick.to_be_bytes::<32>());
+        data_builder.append_value(&swap_body);
+
+        // Row 1: Mint event (different topic0, different body layout)
+        topic0_builder.append_value(mint_selector);
+        topic1_builder.append_value(addr);
+        topic2_builder.append_value(addr);
+        topic3_builder.append_value(addr);
+        let mint_body = vec![0u8; 32 * 4]; // sender, amount, amount0, amount1
+        data_builder.append_value(&mint_body);
+
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("topic0", DataType::Binary, true),
+            Field::new("topic1", DataType::Binary, true),
+            Field::new("topic2", DataType::Binary, true),
+            Field::new("topic3", DataType::Binary, true),
+            Field::new("data", DataType::Binary, true),
+        ]));
+
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![
+                Arc::new(topic0_builder.finish()),
+                Arc::new(topic1_builder.finish()),
+                Arc::new(topic2_builder.finish()),
+                Arc::new(topic3_builder.finish()),
+                Arc::new(data_builder.finish()),
+            ],
+        )
+        .unwrap();
+
+        // With filter_by_topic0=true, should filter to only the Swap row
+        let result = decode_events(swap_sig, &batch, true, true, false).unwrap();
+        assert_eq!(result.num_rows(), 1, "should only decode the Swap row");
+
+        // With filter_by_topic0=true and hstack=true, decoded + input columns are returned
+        let result = decode_events(swap_sig, &batch, true, true, true).unwrap();
+        assert_eq!(result.num_rows(), 1);
+        // Should have decoded columns + original input columns
+        assert!(
+            result.column_by_name("topic0").is_some(),
+            "hstack should include original input columns"
+        );
+    }
+
+    #[test]
     #[ignore]
     fn nested_event_signature_to_schema() {
         let sig = "ConfiguredQuests(address editor, uint256[][], address indexed my_addr, (bool,bool[],(bool, uint256[]))[] questDetails)";
@@ -871,7 +1080,7 @@ mod tests {
         let signature =
             "PairCreated(address indexed token0, address indexed token1, address pair,uint256)";
 
-        let decoded = decode_events(signature, &logs, false).unwrap();
+        let decoded = decode_events(signature, &logs, false, false, false).unwrap();
 
         // Save the filtered instructions to a new parquet file
         let mut file = File::create("decoded_logs.parquet").unwrap();

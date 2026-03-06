@@ -1,10 +1,11 @@
 use anyhow::{anyhow, Context, Result};
 use arrow::array::{
-    builder, Array, BinaryArray, GenericBinaryArray, GenericListArray, GenericStringArray,
-    LargeBinaryArray, LargeStringArray, OffsetSizeTrait, StringArray,
+    builder, Array, BinaryArray, BooleanArray, GenericBinaryArray, GenericListArray,
+    GenericStringArray, LargeBinaryArray, LargeStringArray, OffsetSizeTrait, StringArray,
 };
 use arrow::{
     array::RecordBatch,
+    compute,
     datatypes::{DataType, Field, Schema},
 };
 use base64::{engine::general_purpose::STANDARD, Engine as _};
@@ -132,7 +133,16 @@ pub fn decode_instructions_batch(
     signature: &InstructionSignature,
     batch: &RecordBatch,
     allow_decode_fail: bool,
+    filter_by_discriminator: bool,
+    hstack: bool,
 ) -> Result<RecordBatch> {
+    let batch = if filter_by_discriminator {
+        filter_by_discriminator_impl(signature, batch)?
+    } else {
+        batch.clone()
+    };
+    let batch = &batch;
+
     let mut account_arrays: Vec<BinaryArray> = Vec::with_capacity(20);
 
     for i in 0..signature.accounts_names.len().min(10) {
@@ -214,7 +224,7 @@ pub fn decode_instructions_batch(
         .column_by_name("data")
         .context("data column not found in instructions batch")?;
 
-    if data_col.data_type() == &DataType::Binary {
+    let decoded = if data_col.data_type() == &DataType::Binary {
         decode_instructions(
             signature,
             &account_arrays,
@@ -238,6 +248,12 @@ pub fn decode_instructions_batch(
         Err(anyhow!(
             "expected the data column to be Binary or LargeBinary"
         ))
+    }?;
+
+    if hstack {
+        hstack_impl(&decoded, batch)
+    } else {
+        Ok(decoded)
     }
 }
 
@@ -375,12 +391,13 @@ pub fn decode_logs_batch(
     signature: &LogSignature,
     batch: &RecordBatch,
     allow_decode_fail: bool,
+    hstack: bool,
 ) -> Result<RecordBatch> {
     let message_col = batch
         .column_by_name("message")
         .context("message column not found in logs batch")?;
 
-    if message_col.data_type() == &DataType::Utf8 {
+    let decoded = if message_col.data_type() == &DataType::Utf8 {
         decode_logs(
             signature,
             message_col
@@ -400,6 +417,12 @@ pub fn decode_logs_batch(
         )
     } else {
         Err(anyhow!("expected String or LargeString message column"))
+    }?;
+
+    if hstack {
+        hstack_impl(&decoded, batch)
+    } else {
+        Ok(decoded)
     }
 }
 
@@ -507,6 +530,68 @@ pub fn match_discriminators(instr_data: &[u8], discriminator: &[u8]) -> Result<V
         ));
     }
     Ok(ix_data.to_vec())
+}
+
+fn filter_by_discriminator_impl(
+    signature: &InstructionSignature,
+    batch: &RecordBatch,
+) -> Result<RecordBatch> {
+    let Some(data_col) = batch.column_by_name("data") else {
+        return Ok(batch.clone());
+    };
+
+    let discriminator = &signature.discriminator;
+    let mask = build_discriminator_mask(data_col.as_ref(), discriminator)
+        .context("build discriminator filter mask")?;
+
+    let non_matching = mask.iter().filter(|v| !v.unwrap_or(false)).count();
+    if non_matching > 0 {
+        log::debug!("filtering out {non_matching} instructions whose discriminator does not match");
+    }
+
+    compute::filter_record_batch(batch, &mask).context("filter record batch by discriminator")
+}
+
+fn build_discriminator_mask(col: &dyn Array, discriminator: &[u8]) -> Result<BooleanArray> {
+    if col.data_type() == &DataType::Binary {
+        let arr = col
+            .as_any()
+            .downcast_ref::<BinaryArray>()
+            .context("downcast data to BinaryArray")?;
+        Ok(BooleanArray::from(
+            arr.iter()
+                .map(|v| v.map(|b| b.starts_with(discriminator)))
+                .collect::<Vec<_>>(),
+        ))
+    } else if col.data_type() == &DataType::LargeBinary {
+        let arr = col
+            .as_any()
+            .downcast_ref::<LargeBinaryArray>()
+            .context("downcast data to LargeBinaryArray")?;
+        Ok(BooleanArray::from(
+            arr.iter()
+                .map(|v| v.map(|b| b.starts_with(discriminator)))
+                .collect::<Vec<_>>(),
+        ))
+    } else {
+        Err(anyhow!(
+            "unexpected data column type {}. Expected Binary or LargeBinary",
+            col.data_type()
+        ))
+    }
+}
+
+fn hstack_impl(decoded: &RecordBatch, input: &RecordBatch) -> Result<RecordBatch> {
+    let mut fields: Vec<Arc<Field>> = decoded.schema().fields().iter().cloned().collect();
+    let mut arrays: Vec<Arc<dyn Array>> = decoded.columns().to_vec();
+
+    for (i, col) in input.columns().iter().enumerate() {
+        fields.push(input.schema().field(i).clone().into());
+        arrays.push(col.clone());
+    }
+
+    let schema = Schema::new(fields);
+    RecordBatch::try_new(Arc::new(schema), arrays).context("construct hstacked arrow batch")
 }
 
 pub fn instruction_signature_to_arrow_schema(signature: &InstructionSignature) -> Result<Schema> {

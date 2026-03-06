@@ -402,10 +402,13 @@ fn u256_column_to_binary(col: &Bound<'_, PyAny>, py: Python<'_>) -> PyResult<PyO
 }
 
 #[pyfunction]
+#[pyo3(signature = (signature, batch, allow_decode_fail=false, filter_by_discriminator=false, hstack=false))]
 fn svm_decode_instructions(
     signature: &Bound<'_, PyAny>,
     batch: &Bound<'_, PyAny>,
     allow_decode_fail: bool,
+    filter_by_discriminator: bool,
+    hstack: bool,
     py: Python<'_>,
 ) -> PyResult<PyObject> {
     let batch = RecordBatch::from_pyarrow_bound(batch).context("convert batch from pyarrow")?;
@@ -415,6 +418,8 @@ fn svm_decode_instructions(
         &instruction_signature,
         &batch,
         allow_decode_fail,
+        filter_by_discriminator,
+        hstack,
     )
     .context("decode instruction batch")?;
 
@@ -422,18 +427,21 @@ fn svm_decode_instructions(
 }
 
 #[pyfunction]
+#[pyo3(signature = (signature, batch, allow_decode_fail=false, hstack=false))]
 fn svm_decode_logs(
     signature: &Bound<'_, PyAny>,
     batch: &Bound<'_, PyAny>,
     allow_decode_fail: bool,
+    hstack: bool,
     py: Python<'_>,
 ) -> PyResult<PyObject> {
     let batch = RecordBatch::from_pyarrow_bound(batch).context("convert batch from pyarrow")?;
 
     let log_signature = signature.extract::<LogSignature>()?;
 
-    let batch = baselib::svm_decode::decode_logs_batch(&log_signature, &batch, allow_decode_fail)
-        .context("decode log batch")?;
+    let batch =
+        baselib::svm_decode::decode_logs_batch(&log_signature, &batch, allow_decode_fail, hstack)
+            .context("decode log batch")?;
 
     Ok(batch.to_pyarrow(py).context("map result back to pyarrow")?)
 }
@@ -509,16 +517,25 @@ fn evm_decode_call_outputs(
 }
 
 #[pyfunction]
+#[pyo3(signature = (signature, batch, allow_decode_fail=false, filter_by_topic0=false, hstack=false))]
 fn evm_decode_events(
     signature: &str,
     batch: &Bound<'_, PyAny>,
     allow_decode_fail: bool,
+    filter_by_topic0: bool,
+    hstack: bool,
     py: Python<'_>,
 ) -> PyResult<PyObject> {
     let batch = RecordBatch::from_pyarrow_bound(batch).context("convert batch from pyarrow")?;
 
-    let batch = baselib::evm_decode::decode_events(signature, &batch, allow_decode_fail)
-        .context("decode events")?;
+    let batch = baselib::evm_decode::decode_events(
+        signature,
+        &batch,
+        allow_decode_fail,
+        filter_by_topic0,
+        hstack,
+    )
+    .context("decode events")?;
 
     Ok(batch.to_pyarrow(py).context("map result back to pyarrow")?)
 }
