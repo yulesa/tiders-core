@@ -509,16 +509,25 @@ fn evm_decode_call_outputs(
 }
 
 #[pyfunction]
+#[pyo3(signature = (signature, batch, allow_decode_fail=false, filter_by_topic0=false, hstack=false))]
 fn evm_decode_events(
     signature: &str,
     batch: &Bound<'_, PyAny>,
     allow_decode_fail: bool,
+    filter_by_topic0: bool,
+    hstack: bool,
     py: Python<'_>,
 ) -> PyResult<PyObject> {
     let batch = RecordBatch::from_pyarrow_bound(batch).context("convert batch from pyarrow")?;
 
-    let batch = baselib::evm_decode::decode_events(signature, &batch, allow_decode_fail)
-        .context("decode events")?;
+    let batch = baselib::evm_decode::decode_events(
+        signature,
+        &batch,
+        allow_decode_fail,
+        filter_by_topic0,
+        hstack,
+    )
+    .context("decode events")?;
 
     Ok(batch.to_pyarrow(py).context("map result back to pyarrow")?)
 }

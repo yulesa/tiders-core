@@ -1,3 +1,10 @@
+"""SVM (Solana Virtual Machine) query definitions for blockchain data ingestion.
+
+Provides dataclass-based query builders for filtering and selecting Solana blockchain
+data including instructions, transactions, logs, balances, token balances, and rewards.
+Field selector classes control which columns are included in the response.
+"""
+
 from typing import Optional, Union
 from dataclasses import dataclass, field
 from enum import Enum
@@ -5,6 +12,16 @@ from enum import Enum
 
 @dataclass
 class InstructionFields:
+    """Field selector for Solana instruction data.
+
+    Set fields to True to include them in the response. All fields default to False.
+
+    Account fields ``a0`` through ``a9`` correspond to positional accounts in the
+    instruction. ``rest_of_accounts`` captures any accounts beyond index 9.
+    Data fields ``d1``, ``d2``, ``d4``, ``d8`` represent data chunks of 1, 2, 4, and
+    8 bytes respectively from the instruction data.
+    """
+
     block_slot: bool = False
     block_hash: bool = False
     transaction_index: bool = False
@@ -34,6 +51,11 @@ class InstructionFields:
 
 @dataclass
 class TransactionFields:
+    """Field selector for Solana transaction data.
+
+    Set fields to True to include them in the response. All fields default to False.
+    """
+
     block_slot: bool = False
     block_hash: bool = False
     transaction_index: bool = False
@@ -57,6 +79,11 @@ class TransactionFields:
 
 @dataclass
 class LogFields:
+    """Field selector for Solana program log data.
+
+    Set fields to True to include them in the response. All fields default to False.
+    """
+
     block_slot: bool = False
     block_hash: bool = False
     transaction_index: bool = False
@@ -69,6 +96,19 @@ class LogFields:
 
 @dataclass
 class BalanceFields:
+    """Field selector for Solana native SOL balance change data.
+
+    Set fields to True to include them in the response. All fields default to False.
+
+    Attributes:
+        block_slot: The slot number of the block.
+        block_hash: The hash of the block.
+        transaction_index: The index of the transaction within the block.
+        account: The account public key.
+        pre: The account balance before the transaction (in lamports).
+        post: The account balance after the transaction (in lamports).
+    """
+
     block_slot: bool = False
     block_hash: bool = False
     transaction_index: bool = False
@@ -79,6 +119,12 @@ class BalanceFields:
 
 @dataclass
 class TokenBalanceFields:
+    """Field selector for Solana SPL token balance change data.
+
+    Set fields to True to include them in the response. All fields default to False.
+    Pre/post fields capture the state before and after the transaction.
+    """
+
     block_slot: bool = False
     block_hash: bool = False
     transaction_index: bool = False
@@ -97,6 +143,11 @@ class TokenBalanceFields:
 
 @dataclass
 class RewardFields:
+    """Field selector for Solana validator reward data.
+
+    Set fields to True to include them in the response. All fields default to False.
+    """
+
     block_slot: bool = False
     block_hash: bool = False
     pubkey: bool = False
@@ -108,6 +159,11 @@ class RewardFields:
 
 @dataclass
 class BlockFields:
+    """Field selector for Solana block data.
+
+    Set fields to True to include them in the response. All fields default to False.
+    """
+
     slot: bool = False
     hash: bool = False
     parent_slot: bool = False
@@ -118,6 +174,18 @@ class BlockFields:
 
 @dataclass
 class Fields:
+    """Aggregated field selectors for all SVM data types.
+
+    Attributes:
+        instruction: Fields to include for instruction data.
+        transaction: Fields to include for transaction data.
+        log: Fields to include for program log data.
+        balance: Fields to include for SOL balance change data.
+        token_balance: Fields to include for SPL token balance change data.
+        reward: Fields to include for validator reward data.
+        block: Fields to include for block data.
+    """
+
     instruction: InstructionFields = field(default_factory=InstructionFields)
     transaction: TransactionFields = field(default_factory=TransactionFields)
     log: LogFields = field(default_factory=LogFields)
@@ -129,6 +197,41 @@ class Fields:
 
 @dataclass
 class InstructionRequest:
+    """Filter for Solana instructions.
+
+    All filter fields accept lists of values and are combined with OR logic within
+    a field and AND logic across fields. An empty list means no filtering on that field.
+
+    Discriminator fields (``d1``-``d8``) filter on instruction data prefixes of the
+    corresponding byte length. Account fields (``a0``-``a9``) filter on positional
+    account public keys.
+
+    Attributes:
+        program_id: Program IDs to match (base58-encoded).
+        discriminator: Instruction discriminators to match (bytes or hex strings).
+        d1: 1-byte data prefix filters.
+        d2: 2-byte data prefix filters.
+        d3: 3-byte data prefix filters.
+        d4: 4-byte data prefix filters.
+        d8: 8-byte data prefix filters.
+        a0: Account at index 0 to match (base58-encoded).
+        a1: Account at index 1 to match.
+        a2: Account at index 2 to match.
+        a3: Account at index 3 to match.
+        a4: Account at index 4 to match.
+        a5: Account at index 5 to match.
+        a6: Account at index 6 to match.
+        a7: Account at index 7 to match.
+        a8: Account at index 8 to match.
+        a9: Account at index 9 to match.
+        is_committed: If True, only include committed (successful) instructions.
+        include_transactions: If True, include the parent transaction.
+        include_transaction_token_balances: If True, include token balance changes.
+        include_logs: If True, include program logs for matching instructions.
+        include_inner_instructions: If True, include inner (CPI) instructions.
+        include_blocks: If True, include block data. Defaults to True.
+    """
+
     program_id: list[str] = field(default_factory=list)
     discriminator: list[Union[bytes, str]] = field(default_factory=list)
     d1: list[Union[bytes, str]] = field(default_factory=list)
@@ -156,6 +259,15 @@ class InstructionRequest:
 
 @dataclass
 class TransactionRequest:
+    """Filter for Solana transactions.
+
+    Attributes:
+        fee_payer: Fee payer public keys to match (base58-encoded).
+        include_instructions: If True, include all instructions in matching transactions.
+        include_logs: If True, include program logs for matching transactions.
+        include_blocks: If True, include block data for blocks containing matches.
+    """
+
     fee_payer: list[str] = field(default_factory=list)
     include_instructions: bool = False
     include_logs: bool = False
@@ -163,6 +275,14 @@ class TransactionRequest:
 
 
 class LogKind(str, Enum):
+    """Solana program log message types.
+
+    Attributes:
+        LOG: Standard program log messages (``sol_log``).
+        DATA: Base64-encoded program data messages (``sol_log_data``).
+        OTHER: Other log message types.
+    """
+
     LOG = "log"
     DATA = "data"
     OTHER = "other"
@@ -170,10 +290,18 @@ class LogKind(str, Enum):
 
 @dataclass
 class LogRequest:
+    """Filter for Solana program logs.
+
+    Attributes:
+        program_id: Program IDs to match (base58-encoded).
+        kind: Log message types to match.
+        include_transactions: If True, include the parent transaction.
+        include_instructions: If True, include the instruction that emitted the log.
+        include_blocks: If True, include block data for blocks containing matches.
+    """
+
     program_id: list[str] = field(default_factory=list)
-    kind: list[LogKind] = field(
-        default_factory=list
-    )  # Assuming LogKind is represented as a string
+    kind: list[LogKind] = field(default_factory=list)
     include_transactions: bool = False
     include_instructions: bool = False
     include_blocks: bool = False
@@ -181,6 +309,16 @@ class LogRequest:
 
 @dataclass
 class BalanceRequest:
+    """Filter for Solana native SOL balance changes.
+
+    Attributes:
+        account: Account public keys to match (base58-encoded).
+        include_transactions: If True, include the parent transaction.
+        include_transaction_instructions: If True, include instructions from matching
+            transactions.
+        include_blocks: If True, include block data for blocks containing matches.
+    """
+
     account: list[str] = field(default_factory=list)
     include_transactions: bool = False
     include_transaction_instructions: bool = False
@@ -189,6 +327,24 @@ class BalanceRequest:
 
 @dataclass
 class TokenBalanceRequest:
+    """Filter for Solana SPL token balance changes.
+
+    Pre/post filters match the state before and after the transaction respectively.
+
+    Attributes:
+        account: Token account public keys to match (base58-encoded).
+        pre_program_id: Token program IDs before the transaction.
+        post_program_id: Token program IDs after the transaction.
+        pre_mint: Token mint addresses before the transaction.
+        post_mint: Token mint addresses after the transaction.
+        pre_owner: Token account owners before the transaction.
+        post_owner: Token account owners after the transaction.
+        include_transactions: If True, include the parent transaction.
+        include_transaction_instructions: If True, include instructions from matching
+            transactions.
+        include_blocks: If True, include block data for blocks containing matches.
+    """
+
     account: list[str] = field(default_factory=list)
     pre_program_id: list[str] = field(default_factory=list)
     post_program_id: list[str] = field(default_factory=list)
@@ -203,12 +359,38 @@ class TokenBalanceRequest:
 
 @dataclass
 class RewardRequest:
+    """Filter for Solana validator rewards.
+
+    Attributes:
+        pubkey: Validator public keys to match (base58-encoded).
+        include_blocks: If True, include block data for blocks containing matches.
+    """
+
     pubkey: list[str] = field(default_factory=list)
     include_blocks: bool = False
 
 
 @dataclass
 class Query:
+    """Top-level SVM data query.
+
+    Defines the block range (by slot number), data filters, and field selections
+    for a Solana blockchain data request.
+
+    Attributes:
+        from_block: Starting slot number (inclusive). Defaults to 0.
+        to_block: Ending slot number (exclusive). If None, streams to chain head.
+        include_all_blocks: If True, include all blocks in the range even if they
+            don't match any filter.
+        fields: Field selectors controlling which columns appear in the response.
+        instructions: List of instruction filters. Results matching any filter are included.
+        transactions: List of transaction filters.
+        logs: List of program log filters.
+        balances: List of SOL balance change filters.
+        token_balances: List of SPL token balance change filters.
+        rewards: List of validator reward filters.
+    """
+
     from_block: int = 0
     to_block: Optional[int] = None
     include_all_blocks: bool = False

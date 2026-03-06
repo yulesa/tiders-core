@@ -1,9 +1,35 @@
+"""EVM (Ethereum Virtual Machine) query definitions for blockchain data ingestion.
+
+Provides dataclass-based query builders for filtering and selecting EVM blockchain
+data including transactions, event logs, and execution traces. Each request type
+supports filtering by address, signature hash, and other chain-specific fields.
+Field selector classes control which columns are included in the response.
+"""
+
 from typing import Optional
 from dataclasses import dataclass, field
 
 
 @dataclass
 class TransactionRequest:
+    """Filter for EVM transactions.
+
+    All filter fields accept lists of values and are combined with OR logic within
+    a field and AND logic across fields. An empty list means no filtering on that field.
+
+    Attributes:
+        from_: Sender addresses to match.
+        to: Recipient addresses to match.
+        sighash: 4-byte function selector hashes to match (hex-encoded).
+        status: Transaction status codes (1 for success, 0 for failure).
+        type_: Transaction type values (0=legacy, 1=access list, 2=EIP-1559).
+        contract_deployment_address: Addresses of deployed contracts to match.
+        hash: Specific transaction hashes to match.
+        include_logs: If True, include event logs emitted by matching transactions.
+        include_traces: If True, include execution traces for matching transactions.
+        include_blocks: If True, include block data for blocks containing matches.
+    """
+
     from_: list[str] = field(default_factory=list)
     to: list[str] = field(default_factory=list)
     sighash: list[str] = field(default_factory=list)
@@ -18,6 +44,22 @@ class TransactionRequest:
 
 @dataclass
 class LogRequest:
+    """Filter for EVM event logs.
+
+    Filters are combined with OR logic within a field and AND logic across fields.
+
+    Attributes:
+        address: Contract addresses to match.
+        topic0: Event signature hashes (keccak256) to match.
+        topic1: First indexed parameter values to match.
+        topic2: Second indexed parameter values to match.
+        topic3: Third indexed parameter values to match.
+        include_transactions: If True, include the parent transaction for each log.
+        include_transaction_logs: If True, include all logs from matching transactions.
+        include_transaction_traces: If True, include traces from matching transactions.
+        include_blocks: If True, include block data for blocks containing matches.
+    """
+
     address: list[str] = field(default_factory=list)
     topic0: list[str] = field(default_factory=list)
     topic1: list[str] = field(default_factory=list)
@@ -31,6 +73,25 @@ class LogRequest:
 
 @dataclass
 class TraceRequest:
+    """Filter for EVM execution traces (internal transactions).
+
+    Filters are combined with OR logic within a field and AND logic across fields.
+
+    Attributes:
+        from_: Caller addresses to match.
+        to: Callee addresses to match.
+        address: Contract addresses involved in the trace to match.
+        call_type: Call types to match (e.g. ``"call"``, ``"delegatecall"``, ``"staticcall"``).
+        reward_type: Reward types to match (e.g. ``"block"``, ``"uncle"``).
+        type_: Trace types to match (e.g. ``"call"``, ``"create"``, ``"suicide"``).
+        sighash: 4-byte function selector hashes to match.
+        author: Block reward author addresses to match.
+        include_transactions: If True, include the parent transaction.
+        include_transaction_logs: If True, include all logs from matching transactions.
+        include_transaction_traces: If True, include all traces from matching transactions.
+        include_blocks: If True, include block data for blocks containing matches.
+    """
+
     from_: list[str] = field(default_factory=list)
     to: list[str] = field(default_factory=list)
     address: list[str] = field(default_factory=list)
@@ -47,6 +108,11 @@ class TraceRequest:
 
 @dataclass
 class BlockFields:
+    """Field selector for EVM block data.
+
+    Set fields to True to include them in the response. All fields default to False.
+    """
+
     number: bool = False
     hash: bool = False
     parent_hash: bool = False
@@ -79,6 +145,13 @@ class BlockFields:
 
 @dataclass
 class TransactionFields:
+    """Field selector for EVM transaction data.
+
+    Set fields to True to include them in the response. All fields default to False.
+    Includes standard EVM fields as well as L2-specific fields (e.g. ``l1_fee``,
+    ``blob_gas_price``).
+    """
+
     block_hash: bool = False
     block_number: bool = False
     from_: bool = False
@@ -127,6 +200,11 @@ class TransactionFields:
 
 @dataclass
 class LogFields:
+    """Field selector for EVM event log data.
+
+    Set fields to True to include them in the response. All fields default to False.
+    """
+
     removed: bool = False
     log_index: bool = False
     transaction_index: bool = False
@@ -143,6 +221,11 @@ class LogFields:
 
 @dataclass
 class TraceFields:
+    """Field selector for EVM execution trace data.
+
+    Set fields to True to include them in the response. All fields default to False.
+    """
+
     from_: bool = False
     to: bool = False
     call_type: bool = False
@@ -172,6 +255,15 @@ class TraceFields:
 
 @dataclass
 class Fields:
+    """Aggregated field selectors for all EVM data types.
+
+    Attributes:
+        block: Fields to include for block data.
+        transaction: Fields to include for transaction data.
+        log: Fields to include for event log data.
+        trace: Fields to include for execution trace data.
+    """
+
     block: BlockFields = field(default_factory=BlockFields)
     transaction: TransactionFields = field(default_factory=TransactionFields)
     log: LogFields = field(default_factory=LogFields)
@@ -180,6 +272,22 @@ class Fields:
 
 @dataclass
 class Query:
+    """Top-level EVM data query.
+
+    Defines the block range, data filters, and field selections for an EVM
+    blockchain data request.
+
+    Attributes:
+        from_block: Starting block number (inclusive). Defaults to 0.
+        to_block: Ending block number (exclusive). If None, streams to chain head.
+        include_all_blocks: If True, include all blocks in the range even if they
+            don't match any filter.
+        transactions: List of transaction filters. Results matching any filter are included.
+        logs: List of event log filters. Results matching any filter are included.
+        traces: List of trace filters. Results matching any filter are included.
+        fields: Field selectors controlling which columns appear in the response.
+    """
+
     from_block: int = 0
     to_block: Optional[int] = None
     include_all_blocks: bool = False
