@@ -365,10 +365,7 @@ fn resolve_event_signature(signature: &str) -> Result<(alloy_json_abi::Event, Dy
 /// Filters a RecordBatch to only rows where the `topic0` column matches the
 /// event's selector hash. If `topic0` column is not present, returns the data
 /// unchanged. Non-matching rows are always silently filtered out.
-fn filter_by_topic0_impl(
-    event: &alloy_json_abi::Event,
-    data: &RecordBatch,
-) -> Result<RecordBatch> {
+fn filter_by_topic0_impl(event: &alloy_json_abi::Event, data: &RecordBatch) -> Result<RecordBatch> {
     let Some(topic0_col) = data.column_by_name("topic0") else {
         return Ok(data.clone());
     };
