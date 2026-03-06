@@ -234,6 +234,8 @@ def svm_decode_instructions(
     signature: svm_decode.InstructionSignature,
     batch: pyarrow.RecordBatch,
     allow_decode_fail: bool = False,
+    filter_by_discriminator: bool = False,
+    hstack: bool = False,
 ) -> pyarrow.RecordBatch:
     """Decode Solana (SVM) instructions from a RecordBatch using an instruction signature.
 
@@ -247,17 +249,25 @@ def svm_decode_instructions(
             column with binary-encoded instruction bytes).
         allow_decode_fail: If True, rows that fail to decode are filled with nulls
             instead of raising an error.
+        filter_by_discriminator: If True, only rows whose instruction data starts with
+            the expected discriminator are decoded. Non-matching rows are filtered out.
+        hstack: If True, the original input columns are appended alongside the decoded
+            columns in the output.
 
     Returns:
         A new RecordBatch with decoded instruction parameters and named account columns.
+        When ``hstack`` is True, original input columns are also included.
     """
-    return cc.svm_decode_instructions(signature, batch, allow_decode_fail)
+    return cc.svm_decode_instructions(
+        signature, batch, allow_decode_fail, filter_by_discriminator, hstack
+    )
 
 
 def svm_decode_logs(
     signature: svm_decode.LogSignature,
     batch: pyarrow.RecordBatch,
     allow_decode_fail: bool = False,
+    hstack: bool = False,
 ) -> pyarrow.RecordBatch:
     """Decode Solana (SVM) program logs from a RecordBatch using a log signature.
 
@@ -269,11 +279,14 @@ def svm_decode_logs(
         batch: A RecordBatch containing raw log data.
         allow_decode_fail: If True, rows that fail to decode are filled with nulls
             instead of raising an error.
+        hstack: If True, the original input columns are appended alongside the decoded
+            columns in the output.
 
     Returns:
         A new RecordBatch with decoded log event parameters.
+        When ``hstack`` is True, original input columns are also included.
     """
-    return cc.svm_decode_logs(signature, batch, allow_decode_fail)
+    return cc.svm_decode_logs(signature, batch, allow_decode_fail, hstack)
 
 
 def instruction_signature_to_arrow_schema(
