@@ -410,6 +410,71 @@ def evm_signature_to_topic0(signature: str) -> str:
     return cc.evm_signature_to_topic0(signature)
 
 
+class EvmAbiEvent:
+    """Parsed event info extracted from a JSON ABI.
+
+    Attributes:
+        name: Event name (e.g. ``"Swap"``).
+        signature: Human-readable signature with names and indexed markers
+            (e.g. ``"Swap(address indexed sender, address indexed recipient, int256 amount0, ...)"``).
+            Can be passed directly to :func:`evm_decode_events`.
+        selector_signature: Canonical selector signature without names
+            (e.g. ``"Swap(address,address,int256,int256,uint160,uint128,int24)"``).
+        topic0: topic0 as ``0x``-prefixed hex string.
+    """
+
+    name: str
+    signature: str
+    selector_signature: str
+    topic0: str
+
+
+class EvmAbiFunction:
+    """Parsed function info extracted from a JSON ABI.
+
+    Attributes:
+        name: Function name (e.g. ``"swap"``).
+        signature: Human-readable signature with names
+            (e.g. ``"swap(address recipient, bool zeroForOne, int256 amountSpecified, ...)"``).
+        selector_signature: Canonical selector signature without names
+            (e.g. ``"swap(address,bool,int256,uint160,bytes)"``).
+        selector: 4-byte selector as ``0x``-prefixed hex string.
+    """
+
+    name: str
+    signature: str
+    selector_signature: str
+    selector: str
+
+
+def evm_abi_events(json_str: str) -> list[EvmAbiEvent]:
+    """Parse a JSON ABI string and extract all events.
+
+    Args:
+        json_str: The full JSON ABI as a string (e.g. read from a ``.json`` file).
+
+    Returns:
+        A list of :class:`EvmAbiEvent` objects, one per event in the ABI.
+        Each contains the event name, human-readable signature (suitable for
+        :func:`evm_decode_events`), canonical selector signature, and topic0 hash.
+    """
+    return cc.evm_abi_events(json_str)
+
+
+def evm_abi_functions(json_str: str) -> list[EvmAbiFunction]:
+    """Parse a JSON ABI string and extract all functions.
+
+    Args:
+        json_str: The full JSON ABI as a string (e.g. read from a ``.json`` file).
+
+    Returns:
+        A list of :class:`EvmAbiFunction` objects, one per function in the ABI.
+        Each contains the function name, human-readable signature, canonical
+        selector signature, and 4-byte selector hash.
+    """
+    return cc.evm_abi_functions(json_str)
+
+
 def base58_encode_bytes(b: bytes) -> str:
     """Base58-encode a single bytes value using the Bitcoin alphabet.
 

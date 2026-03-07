@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use alloy_dyn_abi::{DynSolCall, DynSolEvent, DynSolType, DynSolValue, Specifier};
+use alloy_json_abi::JsonAbi;
 use alloy_primitives::{I256, U256};
 use anyhow::{anyhow, Context, Result};
 use arrow::{
@@ -896,6 +897,77 @@ fn to_string(sol_values: &[Option<DynSolValue>]) -> Result<Arc<dyn Array>> {
     Ok(Arc::new(builder.finish()))
 }
 
+/// Parsed event info extracted from a JSON ABI.
+#[derive(Debug, Clone)]
+pub struct EvmAbiEvent {
+    /// Event name (e.g. "Swap").
+    pub name: String,
+    /// Human-readable signature with names and indexed markers
+    /// (e.g. "Swap(address indexed sender, address indexed recipient, int256 amount0, ...)").
+    /// Can be passed directly to [`decode_events`].
+    pub signature: String,
+    /// Canonical selector signature without names
+    /// (e.g. "Swap(address,address,int256,int256,uint160,uint128,int24)").
+    pub selector_signature: String,
+    /// topic0 as 0x-prefixed hex string.
+    pub topic0: String,
+}
+
+/// Parsed function info extracted from a JSON ABI.
+#[derive(Debug, Clone)]
+pub struct EvmAbiFunction {
+    /// Function name (e.g. "swap").
+    pub name: String,
+    /// Human-readable signature with names
+    /// (e.g. "swap(address recipient, bool zeroForOne, int256 amountSpecified, ...)").
+    pub signature: String,
+    /// Canonical selector signature without names
+    /// (e.g. "swap(address,bool,int256,uint160,bytes)").
+    pub selector_signature: String,
+    /// 4-byte selector as 0x-prefixed hex string.
+    pub selector: String,
+}
+
+/// Formats an event's full signature without the "event " prefix.
+/// Produces e.g. "Swap(address indexed sender, address indexed recipient, int256 amount0)"
+fn event_decode_signature(event: &alloy_json_abi::Event) -> String {
+    let full = event.full_signature();
+    // full_signature() returns "event Name(...)", strip the "event " prefix
+    full.strip_prefix("event ").unwrap_or(&full).to_string()
+}
+
+/// Parse a JSON ABI string and extract all events.
+pub fn abi_events(json_str: &str) -> Result<Vec<EvmAbiEvent>> {
+    let abi: JsonAbi = serde_json::from_str(json_str).context("parse JSON ABI")?;
+    let mut events = Vec::new();
+    for event in abi.events() {
+        let selector = event.selector();
+        events.push(EvmAbiEvent {
+            name: event.name.clone(),
+            signature: event_decode_signature(event),
+            selector_signature: event.signature(),
+            topic0: format!("0x{}", faster_hex::hex_string(selector.as_slice())),
+        });
+    }
+    Ok(events)
+}
+
+/// Parse a JSON ABI string and extract all functions.
+pub fn abi_functions(json_str: &str) -> Result<Vec<EvmAbiFunction>> {
+    let abi: JsonAbi = serde_json::from_str(json_str).context("parse JSON ABI")?;
+    let mut functions = Vec::new();
+    for func in abi.functions() {
+        let selector = func.selector();
+        functions.push(EvmAbiFunction {
+            name: func.name.clone(),
+            signature: func.full_signature(),
+            selector_signature: func.signature(),
+            selector: format!("0x{}", faster_hex::hex_string(selector.as_slice())),
+        });
+    }
+    Ok(functions)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -995,6 +1067,100 @@ mod tests {
             result.column_by_name("topic0").is_some(),
             "hstack should include original input columns"
         );
+    }
+
+    #[test]
+    fn test_abi_events() {
+        let abi_json = r#"[
+            {
+                "anonymous": false,
+                "inputs": [
+                    {"indexed": true, "internalType": "address", "name": "sender", "type": "address"},
+                    {"indexed": true, "internalType": "address", "name": "recipient", "type": "address"},
+                    {"indexed": false, "internalType": "int256", "name": "amount0", "type": "int256"},
+                    {"indexed": false, "internalType": "int256", "name": "amount1", "type": "int256"},
+                    {"indexed": false, "internalType": "uint160", "name": "sqrtPriceX96", "type": "uint160"},
+                    {"indexed": false, "internalType": "uint128", "name": "liquidity", "type": "uint128"},
+                    {"indexed": false, "internalType": "int24", "name": "tick", "type": "int24"}
+                ],
+                "name": "Swap",
+                "type": "event"
+            },
+            {
+                "inputs": [{"internalType": "uint160", "name": "sqrtPriceX96", "type": "uint160"}],
+                "name": "initialize",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            }
+        ]"#;
+
+        let events = abi_events(abi_json);
+        assert!(events.is_ok());
+        let events = events.unwrap_or_default();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].name, "Swap");
+        assert_eq!(
+            events[0].signature,
+            "Swap(address indexed sender, address indexed recipient, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)"
+        );
+        assert_eq!(
+            events[0].selector_signature,
+            "Swap(address,address,int256,int256,uint160,uint128,int24)"
+        );
+        assert!(events[0].topic0.starts_with("0x"));
+        // Verify the signature works with decode (parse round-trip)
+        let topic0_from_sig = signature_to_topic0(&events[0].signature);
+        assert!(topic0_from_sig.is_ok());
+    }
+
+    #[test]
+    fn test_abi_functions() {
+        let abi_json = r#"[
+            {
+                "inputs": [
+                    {"internalType": "address", "name": "recipient", "type": "address"},
+                    {"internalType": "bool", "name": "zeroForOne", "type": "bool"},
+                    {"internalType": "int256", "name": "amountSpecified", "type": "int256"},
+                    {"internalType": "uint160", "name": "sqrtPriceLimitX96", "type": "uint160"},
+                    {"internalType": "bytes", "name": "data", "type": "bytes"}
+                ],
+                "name": "swap",
+                "outputs": [
+                    {"internalType": "int256", "name": "amount0", "type": "int256"},
+                    {"internalType": "int256", "name": "amount1", "type": "int256"}
+                ],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            },
+            {
+                "anonymous": false,
+                "inputs": [
+                    {"indexed": true, "internalType": "address", "name": "sender", "type": "address"}
+                ],
+                "name": "Swap",
+                "type": "event"
+            }
+        ]"#;
+
+        let functions = abi_functions(abi_json);
+        assert!(functions.is_ok());
+        let functions = functions.unwrap_or_default();
+        assert_eq!(functions.len(), 1);
+        assert_eq!(functions[0].name, "swap");
+        assert_eq!(
+            functions[0].selector_signature,
+            "swap(address,bool,int256,uint160,bytes)"
+        );
+        assert!(functions[0].selector.starts_with("0x"));
+        assert_eq!(functions[0].selector.len(), 10); // "0x" + 8 hex chars
+    }
+
+    #[test]
+    fn test_abi_events_empty_abi() {
+        let events = abi_events("[]");
+        assert!(events.is_ok());
+        assert!(events.unwrap_or_default().is_empty());
     }
 
     #[test]
