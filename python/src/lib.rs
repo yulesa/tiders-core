@@ -1,3 +1,16 @@
+//! # tiders-core Python bindings
+//!
+//! PyO3-based Python module exposing the tiders-core library via PyArrow.
+//!
+//! All functions accept and return PyArrow arrays/RecordBatches, using Arrow's
+//! C Data Interface for zero-copy data transfer between Rust and Python.
+//!
+//! The module registers functions for:
+//! - **Casting & encoding**: `cast`, `hex_encode`, `base58_encode`, `u256_to_binary`, etc.
+//! - **EVM decoding**: `evm_decode_events`, `evm_decode_call_inputs`, `evm_abi_events`, etc.
+//! - **SVM decoding**: `svm_decode_instructions`, `svm_decode_logs`, etc.
+//! - **Data ingestion**: via the `ingest` submodule.
+
 use std::sync::LazyLock;
 
 use anyhow::{anyhow, Context};
@@ -201,12 +214,8 @@ fn u256_to_binary(batch: &Bound<'_, PyAny>, py: Python<'_>) -> PyResult<PyObject
 fn base58_encode_column(col: &Bound<'_, PyAny>, py: Python<'_>) -> PyResult<PyObject> {
     let mut col = ArrayData::from_pyarrow_bound(col).context("convert column from pyarrow")?;
 
-    // Ensure data is aligned (by potentially copying the buffers).
-    // This is needed because some python code (for example the
-    // python flight client) produces unaligned buffers
-    // See https://github.com/apache/arrow/issues/43552 for details
-    //
-    // https://github.com/apache/arrow-rs/blob/764b34af4abf39e46575b1e8e3eaf0a36976cafb/arrow/src/pyarrow.rs#L374
+    // Align buffers that may be unaligned from Python (e.g. flight client).
+    // See: https://github.com/apache/arrow/issues/43552
     col.align_buffers();
 
     if col.data_type() != &DataType::Binary {
@@ -238,12 +247,8 @@ fn hex_encode_column_impl<const PREFIXED: bool>(
 ) -> PyResult<PyObject> {
     let mut col = ArrayData::from_pyarrow_bound(col).context("convert column from pyarrow")?;
 
-    // Ensure data is aligned (by potentially copying the buffers).
-    // This is needed because some python code (for example the
-    // python flight client) produces unaligned buffers
-    // See https://github.com/apache/arrow/issues/43552 for details
-    //
-    // https://github.com/apache/arrow-rs/blob/764b34af4abf39e46575b1e8e3eaf0a36976cafb/arrow/src/pyarrow.rs#L374
+    // Align buffers that may be unaligned from Python (e.g. flight client).
+    // See: https://github.com/apache/arrow/issues/43552
     col.align_buffers();
 
     if col.data_type() == &DataType::Binary {
@@ -273,12 +278,8 @@ fn hex_encode_column_impl<const PREFIXED: bool>(
 fn base58_decode_column(col: &Bound<'_, PyAny>, py: Python<'_>) -> PyResult<PyObject> {
     let mut col = ArrayData::from_pyarrow_bound(col).context("convert column from pyarrow")?;
 
-    // Ensure data is aligned (by potentially copying the buffers).
-    // This is needed because some python code (for example the
-    // python flight client) produces unaligned buffers
-    // See https://github.com/apache/arrow/issues/43552 for details
-    //
-    // https://github.com/apache/arrow-rs/blob/764b34af4abf39e46575b1e8e3eaf0a36976cafb/arrow/src/pyarrow.rs#L374
+    // Align buffers that may be unaligned from Python (e.g. flight client).
+    // See: https://github.com/apache/arrow/issues/43552
     col.align_buffers();
 
     if col.data_type() == &DataType::Utf8 {
@@ -320,12 +321,8 @@ fn hex_decode_column_impl<const PREFIXED: bool>(
 ) -> PyResult<PyObject> {
     let mut col = ArrayData::from_pyarrow_bound(col).context("convert column from pyarrow")?;
 
-    // Ensure data is aligned (by potentially copying the buffers).
-    // This is needed because some python code (for example the
-    // python flight client) produces unaligned buffers
-    // See https://github.com/apache/arrow/issues/43552 for details
-    //
-    // https://github.com/apache/arrow-rs/blob/764b34af4abf39e46575b1e8e3eaf0a36976cafb/arrow/src/pyarrow.rs#L374
+    // Align buffers that may be unaligned from Python (e.g. flight client).
+    // See: https://github.com/apache/arrow/issues/43552
     col.align_buffers();
 
     if col.data_type() == &DataType::Utf8 {
@@ -355,12 +352,8 @@ fn hex_decode_column_impl<const PREFIXED: bool>(
 fn u256_column_from_binary(col: &Bound<'_, PyAny>, py: Python<'_>) -> PyResult<PyObject> {
     let mut col = ArrayData::from_pyarrow_bound(col).context("convert column from pyarrow")?;
 
-    // Ensure data is aligned (by potentially copying the buffers).
-    // This is needed because some python code (for example the
-    // python flight client) produces unaligned buffers
-    // See https://github.com/apache/arrow/issues/43552 for details
-    //
-    // https://github.com/apache/arrow-rs/blob/764b34af4abf39e46575b1e8e3eaf0a36976cafb/arrow/src/pyarrow.rs#L374
+    // Align buffers that may be unaligned from Python (e.g. flight client).
+    // See: https://github.com/apache/arrow/issues/43552
     col.align_buffers();
 
     if col.data_type() != &DataType::Binary {
@@ -380,12 +373,8 @@ fn u256_column_from_binary(col: &Bound<'_, PyAny>, py: Python<'_>) -> PyResult<P
 fn u256_column_to_binary(col: &Bound<'_, PyAny>, py: Python<'_>) -> PyResult<PyObject> {
     let mut col = ArrayData::from_pyarrow_bound(col).context("convert column from pyarrow")?;
 
-    // Ensure data is aligned (by potentially copying the buffers).
-    // This is needed because some python code (for example the
-    // python flight client) produces unaligned buffers
-    // See https://github.com/apache/arrow/issues/43552 for details
-    //
-    // https://github.com/apache/arrow-rs/blob/764b34af4abf39e46575b1e8e3eaf0a36976cafb/arrow/src/pyarrow.rs#L374
+    // Align buffers that may be unaligned from Python (e.g. flight client).
+    // See: https://github.com/apache/arrow/issues/43552
     col.align_buffers();
 
     if col.data_type() != &DataType::Decimal256(76, 0) {
@@ -473,12 +462,8 @@ fn evm_decode_call_inputs(
 ) -> PyResult<PyObject> {
     let mut col = ArrayData::from_pyarrow_bound(col).context("convert column from pyarrow")?;
 
-    // Ensure data is aligned (by potentially copying the buffers).
-    // This is needed because some python code (for example the
-    // python flight client) produces unaligned buffers
-    // See https://github.com/apache/arrow/issues/43552 for details
-    //
-    // https://github.com/apache/arrow-rs/blob/764b34af4abf39e46575b1e8e3eaf0a36976cafb/arrow/src/pyarrow.rs#L374
+    // Align buffers that may be unaligned from Python (e.g. flight client).
+    // See: https://github.com/apache/arrow/issues/43552
     col.align_buffers();
 
     if col.data_type() != &DataType::Binary {
@@ -501,12 +486,8 @@ fn evm_decode_call_outputs(
 ) -> PyResult<PyObject> {
     let mut col = ArrayData::from_pyarrow_bound(col).context("convert column from pyarrow")?;
 
-    // Ensure data is aligned (by potentially copying the buffers).
-    // This is needed because some python code (for example the
-    // python flight client) produces unaligned buffers
-    // See https://github.com/apache/arrow/issues/43552 for details
-    //
-    // https://github.com/apache/arrow-rs/blob/764b34af4abf39e46575b1e8e3eaf0a36976cafb/arrow/src/pyarrow.rs#L374
+    // Align buffers that may be unaligned from Python (e.g. flight client).
+    // See: https://github.com/apache/arrow/issues/43552
     col.align_buffers();
 
     if col.data_type() != &DataType::Binary {

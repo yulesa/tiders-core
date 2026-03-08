@@ -1,3 +1,18 @@
+//! # tiders-query
+//!
+//! Arrow RecordBatch query engine with row filtering, column projection, and cross-table joins.
+//!
+//! This crate operates on `BTreeMap<String, RecordBatch>` where keys are table names
+//! (e.g. "blocks", "transactions", "logs"). It supports:
+//!
+//! - **Row filtering** via [`Contains`] (set membership) and [`StartsWith`] (prefix matching).
+//! - **Column projection** via [`select_fields`].
+//! - **Cross-table joins** via [`Include`], which filters rows in one table based on
+//!   matching column values in another.
+//!
+//! Filtering uses xxhash3 for fast hash-table lookups (for sets >= 128 elements) and
+//! rayon for parallel execution across tables and selections.
+
 use anyhow::{anyhow, Context, Result};
 use arrow::array::{
     Array, ArrowPrimitiveType, BinaryArray, BooleanArray, BooleanBuilder, GenericByteArray,
@@ -19,13 +34,23 @@ use xxhash_rust::xxh3::xxh3_64;
 type TableName = String;
 type FieldName = String;
 
+/// A query definition specifying which rows and columns to return from a set of tables.
+///
+/// `selection` defines per-table row filters and cross-table join rules.
+/// `fields` defines which columns to project for each table.
 #[derive(Clone)]
 pub struct Query {
+    /// Row selection rules keyed by table name. Multiple [`TableSelection`]s for the
+    /// same table are OR-combined (a row passes if it matches any selection).
     pub selection: Arc<BTreeMap<TableName, Vec<TableSelection>>>,
+    /// Columns to include in the output, keyed by table name.
     pub fields: BTreeMap<TableName, Vec<FieldName>>,
 }
 
 impl Query {
+    /// Adds all filter and include column names to `self.fields` so that they are
+    /// present in the projected output. This ensures columns referenced by filters
+    /// and joins are fetched from the data source.
     pub fn add_request_and_include_fields(&mut self) -> Result<()> {
         for (table_name, selections) in &*self.selection {
             for selection in selections {
@@ -58,32 +83,51 @@ impl Query {
     }
 }
 
+/// A single selection rule for one table: column filters (AND-combined) plus
+/// cross-table join includes.
 pub struct TableSelection {
+    /// Column-level filters. All filters within a selection are AND-combined:
+    /// a row must pass every filter to be included.
     pub filters: BTreeMap<FieldName, Filter>,
+    /// Cross-table joins. Rows from `other_table_name` are included if their
+    /// join columns match filtered rows from this table.
     pub include: Vec<Include>,
 }
 
+/// Defines a cross-table join: after filtering the source table, include rows from
+/// `other_table_name` whose `other_table_field_names` columns match the source
+/// table's `field_names` columns.
 pub struct Include {
+    /// The target table to join into.
     pub other_table_name: TableName,
+    /// Column names in the source table used for the join key.
     pub field_names: Vec<FieldName>,
+    /// Corresponding column names in the target table.
     pub other_table_field_names: Vec<FieldName>,
 }
 
+/// A row-level filter applied to a single column.
 pub enum Filter {
+    /// Set membership check: row passes if the column value is in the set.
     Contains(Contains),
+    /// Prefix match: row passes if the column value starts with any of the prefixes.
     StartsWith(StartsWith),
+    /// Boolean equality: row passes if the column's boolean value matches.
     Bool(bool),
 }
 
 impl Filter {
+    /// Creates a [`Contains`] filter from the given array of allowed values.
     pub fn contains(arr: Arc<dyn Array>) -> Result<Self> {
         Ok(Self::Contains(Contains::new(arr)?))
     }
 
+    /// Creates a [`StartsWith`] filter from the given array of prefixes.
     pub fn starts_with(arr: Arc<dyn Array>) -> Result<Self> {
         Ok(Self::StartsWith(StartsWith::new(arr)?))
     }
 
+    /// Creates a boolean equality filter.
     pub fn bool(b: bool) -> Self {
         Self::Bool(b)
     }
@@ -118,6 +162,11 @@ impl Filter {
     }
 }
 
+/// Set membership filter backed by a hash table for fast lookups.
+///
+/// Supports integer (i8–i64, u8–u64), binary, and string column types.
+/// For sets with fewer than 128 elements, falls back to linear scan;
+/// for larger sets, uses an xxhash3-based hash table.
 pub struct Contains {
     array: Arc<dyn Array>,
     hash_table: Option<HashTable<usize>>,
@@ -234,6 +283,9 @@ impl Contains {
         Ok(ht)
     }
 
+    /// Creates a new containment filter from a non-nullable array of allowed values.
+    ///
+    /// Uses a hash table for sets of 128+ elements, linear scan otherwise.
     pub fn new(array: Arc<dyn Array>) -> Result<Self> {
         if array.is_nullable() {
             return Err(anyhow!(
@@ -241,7 +293,6 @@ impl Contains {
             ));
         }
 
-        // only use a hash table if there are more than 128 elements
         let hash_table = if array.len() >= 128 {
             Some(Self::ht_from_array(&array).context("construct hash table")?)
         } else {
@@ -456,11 +507,16 @@ impl Contains {
     }
 }
 
+/// Prefix matching filter for binary and string columns.
+///
+/// A row passes if its column value starts with any of the prefix values
+/// in the filter array.
 pub struct StartsWith {
     array: Arc<dyn Array>,
 }
 
 impl StartsWith {
+    /// Creates a new prefix filter from a non-nullable array of prefix values.
     pub fn new(array: Arc<dyn Array>) -> Result<Self> {
         if array.is_nullable() {
             return Err(anyhow!(
@@ -531,7 +587,6 @@ impl StartsWith {
     ) -> BooleanArray {
         let mut filter = BooleanBuilder::with_capacity(other_arr.len());
 
-        // For each value in other_arr, check if it starts with any value in self_arr
         for v in iter_byte_array_without_validity(other_arr) {
             let mut found = false;
             for prefix in iter_byte_array_without_validity(self_arr) {
@@ -547,8 +602,7 @@ impl StartsWith {
     }
 }
 
-// Taken from arrow-rs
-// https://docs.rs/arrow-array/54.2.1/src/arrow_array/array/byte_array.rs.html#278
+/// Unchecked byte access into a [`GenericByteArray`] — adapted from arrow-rs internals.
 #[expect(clippy::unwrap_used, reason = "i32 offsets always fit in isize/usize")]
 unsafe fn byte_array_get_unchecked<T: ByteArrayType<Offset = i32>>(
     arr: &GenericByteArray<T>,
@@ -571,6 +625,11 @@ fn iter_byte_array_without_validity<T: ByteArrayType<Offset = i32>>(
     (0..arr.len()).map(|i| unsafe { byte_array_get_unchecked(arr, i) })
 }
 
+/// Executes a query against a set of named tables, returning filtered and projected results.
+///
+/// Applies all selection filters in parallel (via rayon), OR-combines filters for the
+/// same table, then projects the requested fields. Tables not referenced by any
+/// selection are excluded from the output.
 pub fn run_query(
     data: &BTreeMap<TableName, RecordBatch>,
     query: &Query,
@@ -634,6 +693,7 @@ pub fn run_query(
         .collect()
 }
 
+/// Projects each table to include only the specified columns.
 pub fn select_fields(
     data: &BTreeMap<TableName, RecordBatch>,
     fields: &BTreeMap<TableName, Vec<FieldName>>,

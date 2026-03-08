@@ -1,3 +1,5 @@
+//! SQD Network provider for historical EVM and SVM blockchain data.
+
 use crate::{evm, svm, DataStream, ProviderConfig, Query};
 use anyhow::{anyhow, Context, Result};
 use futures_lite::StreamExt;

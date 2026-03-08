@@ -47,7 +47,7 @@ impl<'py> pyo3::FromPyObject<'py> for DynType {
         use pyo3::types::PyTypeMethods;
 
         let variant_str: String = ob.get_type().name()?.to_string();
-        // If the type name is str, it means it's a custom type, and we need to get the actual DynType value
+        // A str value means the type was passed as a string literal, not a class instance
         let variant_str = if variant_str == "str" {
             ob.to_string()
         } else {
@@ -182,7 +182,7 @@ pub enum DynValue {
 /// # Arguments
 /// * `data` - The binary data to deserialize
 /// * `params` - The parameter types that define the structure of the data
-/// * `error_on_remaining` - Weather to error if there is remaining data in the buffer after parsing
+/// * `error_on_remaining` - Whether to error if there is remaining data in the buffer after parsing
 /// * given params.
 ///
 /// # Returns
@@ -202,7 +202,6 @@ pub fn deserialize_data(
     let mut remaining_data = data;
 
     for param in params {
-        // Deserialize value based on type
         let (value, new_data) = deserialize_value(&param.param_type, remaining_data)?;
         ix_values.push(value);
         remaining_data = new_data;

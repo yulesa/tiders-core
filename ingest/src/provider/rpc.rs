@@ -1,3 +1,5 @@
+//! Direct JSON-RPC provider for EVM blockchain data.
+
 use crate::{evm, DataStream, ProviderConfig, Query, RpcTraceMethod};
 use anyhow::{anyhow, Context, Result};
 use futures_lite::StreamExt;

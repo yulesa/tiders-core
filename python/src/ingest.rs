@@ -1,3 +1,8 @@
+//! Python bindings for the ingest module.
+//!
+//! Exposes [`start_stream`] which creates a [`ResponseStream`] that yields
+//! `dict[str, pyarrow.RecordBatch]` from an async blockchain data stream.
+
 use std::collections::BTreeMap;
 use std::pin::Pin;
 
@@ -7,6 +12,7 @@ use baselib::ingest::{ProviderConfig, Query};
 use futures_lite::{Stream, StreamExt};
 use pyo3::prelude::*;
 
+/// Registers the `ingest` submodule with `start_stream`.
 pub fn ingest_module(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     let submodule = PyModule::new(py, "ingest")?;
 
@@ -17,6 +23,7 @@ pub fn ingest_module(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
+/// Async iterator over blockchain data batches, yielding `dict[str, RecordBatch]` per chunk.
 #[pyclass]
 #[expect(clippy::type_complexity)]
 struct ResponseStream {
@@ -25,10 +32,12 @@ struct ResponseStream {
 
 #[pymethods]
 impl ResponseStream {
+    /// Closes the stream, releasing the underlying provider connection.
     pub fn close(&mut self) {
         self.inner.take();
     }
 
+    /// Returns the next batch of data, or `None` when the stream is exhausted.
     pub async fn next(&mut self) -> PyResult<Option<BTreeMap<String, PyObject>>> {
         let Some(inner) = self.inner.as_mut() else {
             return Ok(None);
