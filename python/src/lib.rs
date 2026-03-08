@@ -602,8 +602,7 @@ struct EvmAbiFunction {
 
 #[pyfunction]
 fn evm_abi_events(json_str: &str) -> PyResult<Vec<EvmAbiEvent>> {
-    let events = baselib::evm_decode::abi_events(json_str)
-        .context("parse abi events")?;
+    let events = baselib::evm_decode::abi_events(json_str).context("parse abi events")?;
     Ok(events
         .into_iter()
         .map(|e| EvmAbiEvent {
@@ -618,8 +617,7 @@ fn evm_abi_events(json_str: &str) -> PyResult<Vec<EvmAbiEvent>> {
 
 #[pyfunction]
 fn evm_abi_functions(json_str: &str) -> PyResult<Vec<EvmAbiFunction>> {
-    let functions = baselib::evm_decode::abi_functions(json_str)
-        .context("parse abi functions")?;
+    let functions = baselib::evm_decode::abi_functions(json_str).context("parse abi functions")?;
     Ok(functions
         .into_iter()
         .map(|f| EvmAbiFunction {

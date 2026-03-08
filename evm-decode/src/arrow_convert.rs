@@ -568,7 +568,10 @@ pub(crate) fn decode_body<I: OffsetSizeTrait>(
 }
 
 /// Build a boolean mask comparing a topic0 column against a selector.
-pub(crate) fn build_topic0_mask(col: &dyn arrow::array::Array, selector: &[u8]) -> Result<BooleanArray> {
+pub(crate) fn build_topic0_mask(
+    col: &dyn arrow::array::Array,
+    selector: &[u8],
+) -> Result<BooleanArray> {
     use arrow::array::{BinaryArray, LargeBinaryArray};
 
     if col.data_type() == &DataType::Binary {
