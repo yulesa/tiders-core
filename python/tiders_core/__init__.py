@@ -415,6 +415,7 @@ class EvmAbiEvent:
 
     Attributes:
         name: Event name (e.g. ``"Swap"``).
+        name_snake_case: Event name in snake_case (e.g. ``"swap"``).
         signature: Human-readable signature with names and indexed markers
             (e.g. ``"Swap(address indexed sender, address indexed recipient, int256 amount0, ...)"``).
             Can be passed directly to :func:`evm_decode_events`.
@@ -424,6 +425,7 @@ class EvmAbiEvent:
     """
 
     name: str
+    name_snake_case: str
     signature: str
     selector_signature: str
     topic0: str
@@ -434,6 +436,7 @@ class EvmAbiFunction:
 
     Attributes:
         name: Function name (e.g. ``"swap"``).
+        name_snake_case: Function name in snake_case (e.g. ``"swap"``).
         signature: Human-readable signature with names
             (e.g. ``"swap(address recipient, bool zeroForOne, int256 amountSpecified, ...)"``).
         selector_signature: Canonical selector signature without names
@@ -442,6 +445,7 @@ class EvmAbiFunction:
     """
 
     name: str
+    name_snake_case: str
     signature: str
     selector_signature: str
     selector: str

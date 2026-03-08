@@ -584,6 +584,7 @@ fn evm_signature_to_topic0(signature: &str) -> PyResult<String> {
 #[derive(Clone)]
 struct EvmAbiEvent {
     name: String,
+    name_snake_case: String,
     signature: String,
     selector_signature: String,
     topic0: String,
@@ -593,6 +594,7 @@ struct EvmAbiEvent {
 #[derive(Clone)]
 struct EvmAbiFunction {
     name: String,
+    name_snake_case: String,
     signature: String,
     selector_signature: String,
     selector: String,
@@ -606,6 +608,7 @@ fn evm_abi_events(json_str: &str) -> PyResult<Vec<EvmAbiEvent>> {
         .into_iter()
         .map(|e| EvmAbiEvent {
             name: e.name,
+            name_snake_case: e.name_snake_case,
             signature: e.signature,
             selector_signature: e.selector_signature,
             topic0: e.topic0,
@@ -621,6 +624,7 @@ fn evm_abi_functions(json_str: &str) -> PyResult<Vec<EvmAbiFunction>> {
         .into_iter()
         .map(|f| EvmAbiFunction {
             name: f.name,
+            name_snake_case: f.name_snake_case,
             signature: f.signature,
             selector_signature: f.selector_signature,
             selector: f.selector,
