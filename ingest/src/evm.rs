@@ -1,7 +1,10 @@
+//! EVM query types and field selection for the ingest layer.
+
 #[cfg(feature = "pyo3")]
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
 
+/// EVM blockchain data query specifying block range, filters, and field selections.
 #[derive(Default, Debug, Clone)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
 pub struct Query {
@@ -14,15 +17,19 @@ pub struct Query {
     pub fields: Fields,
 }
 
+/// A 32-byte hash value (block hash, transaction hash).
 #[derive(Debug, Clone, Copy)]
 pub struct Hash(pub [u8; 32]);
 
+/// A 20-byte EVM address.
 #[derive(Debug, Clone, Copy)]
 pub struct Address(pub [u8; 20]);
 
+/// A 4-byte function selector (first 4 bytes of keccak256 of the function signature).
 #[derive(Debug, Clone, Copy)]
 pub struct Sighash(pub [u8; 4]);
 
+/// A 32-byte event log topic value.
 #[derive(Debug, Clone, Copy)]
 pub struct Topic(pub [u8; 32]);
 
@@ -70,12 +77,7 @@ impl<'py> pyo3::FromPyObject<'py> for Topic {
     }
 }
 
-// #[derive(Default, Debug, Clone)]
-// pub struct BlockRequest {
-//     pub hash: Vec<Hash>,
-//     pub miner: Vec<Address>,
-// }
-
+/// Filters for selecting EVM transactions by sender, recipient, sighash, status, etc.
 #[derive(Default, Debug, Clone)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
 pub struct TransactionRequest {
@@ -91,6 +93,7 @@ pub struct TransactionRequest {
     pub include_blocks: bool,
 }
 
+/// Filters for selecting EVM event logs by contract address and topics.
 #[derive(Default, Debug, Clone)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
 #[expect(clippy::struct_excessive_bools, reason = "field selection flags")]
@@ -106,6 +109,7 @@ pub struct LogRequest {
     pub include_blocks: bool,
 }
 
+/// Filters for selecting EVM execution traces by address, call type, etc.
 #[derive(Default, Debug, Clone)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
 #[expect(clippy::struct_excessive_bools, reason = "field selection flags")]
@@ -124,6 +128,7 @@ pub struct TraceRequest {
     pub include_blocks: bool,
 }
 
+/// Controls which columns are included in the response for each table type.
 #[derive(Deserialize, Serialize, Default, Debug, Clone, Copy)]
 #[serde(default)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
@@ -145,6 +150,7 @@ impl Fields {
     }
 }
 
+/// Field selector for EVM block data columns.
 #[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(default)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
@@ -215,6 +221,7 @@ impl BlockFields {
     }
 }
 
+/// Field selector for EVM transaction data columns.
 #[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(default)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
@@ -319,6 +326,7 @@ impl TransactionFields {
     }
 }
 
+/// Field selector for EVM log data columns.
 #[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(default)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
@@ -357,6 +365,7 @@ impl LogFields {
     }
 }
 
+/// Field selector for EVM trace data columns.
 #[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(default)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]

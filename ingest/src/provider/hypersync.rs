@@ -1,3 +1,5 @@
+//! HyperSync provider for fast historical EVM blockchain data.
+
 use super::common::field_selection_to_set;
 use crate::{evm, DataStream, ProviderConfig, Query};
 use anyhow::{anyhow, Context, Result};
@@ -422,7 +424,6 @@ fn map_hypersync_binary_array_to_access_list_elem(
     }
     let access_list_array = access_list_builder.0.finish();
     let access_list_array = Arc::new(access_list_array);
-    // Create and return the struct array
     Ok(access_list_array)
 }
 

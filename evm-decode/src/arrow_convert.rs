@@ -15,6 +15,11 @@ use arrow::{
     },
 };
 
+/// Maps a Solidity dynamic type to its corresponding Arrow data type.
+///
+/// Handles nested types recursively: tuples become Struct, arrays become List.
+/// Integer types are mapped to the smallest Arrow type that fits the bit width,
+/// with types >64 bits using Decimal128/Decimal256.
 pub(crate) fn to_arrow_dtype(sol_type: &DynSolType) -> Result<DataType> {
     match sol_type {
         DynSolType::Bool => Ok(DataType::Boolean),
@@ -42,6 +47,7 @@ pub(crate) fn to_arrow_dtype(sol_type: &DynSolType) -> Result<DataType> {
     }
 }
 
+/// Maps a Solidity unsigned integer bit width to the smallest Arrow data type that fits.
 pub(crate) fn num_bits_to_uint_type(num_bits: usize) -> DataType {
     if num_bits <= 8 {
         DataType::UInt8
@@ -60,6 +66,7 @@ pub(crate) fn num_bits_to_uint_type(num_bits: usize) -> DataType {
     }
 }
 
+/// Maps a Solidity signed integer bit width to the smallest Arrow data type that fits.
 pub(crate) fn num_bits_to_int_type(num_bits: usize) -> DataType {
     if num_bits <= 8 {
         DataType::Int8
@@ -78,6 +85,10 @@ pub(crate) fn num_bits_to_int_type(num_bits: usize) -> DataType {
     }
 }
 
+/// Converts a column of decoded Solidity values into an Arrow array.
+///
+/// Dispatches to type-specific builders based on the Solidity type. Handles
+/// nested types (tuples, arrays) by recursive decomposition.
 pub(crate) fn to_arrow(
     sol_type: &DynSolType,
     sol_values: Vec<Option<DynSolValue>>,
@@ -364,9 +375,6 @@ fn to_struct(
 ) -> Result<Arc<dyn Array>> {
     let mut values = vec![Vec::with_capacity(sol_values.len()); fields.len()];
 
-    // unpack top layer of sol_values into columnar format
-    // since we recurse by calling to_arrow later in the function, this will eventually map to
-    // primitive types.
     for val in sol_values {
         match val {
             Some(val) => match val {

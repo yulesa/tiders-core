@@ -1,3 +1,13 @@
+//! # tiders-cast
+//!
+//! Type casting and encoding/decoding utilities for Arrow columns and schemas.
+//!
+//! Provides batch-level and column-level operations for:
+//! - **Type casting**: Convert columns between Arrow data types by name or by source type.
+//! - **Hex encoding/decoding**: Binary columns to/from hex strings (with optional `0x` prefix).
+//! - **Base58 encoding/decoding**: Binary columns to/from Base58 strings (Bitcoin alphabet).
+//! - **U256 conversion**: Between `Decimal256(76,0)` and big-endian binary representations.
+
 #![allow(clippy::manual_div_ceil)]
 
 use std::sync::Arc;
@@ -191,6 +201,7 @@ pub fn cast_schema_by_type(
     clippy::unwrap_used,
     reason = "downcast is guaranteed by prior data type check"
 )]
+/// Encodes all Binary and LargeBinary columns in the batch to Base58 (Bitcoin alphabet) strings.
 pub fn base58_encode(data: &RecordBatch) -> Result<RecordBatch> {
     let schema = schema_binary_to_string(data.schema_ref());
     let mut columns = Vec::<Arc<dyn Array>>::with_capacity(data.columns().len());
@@ -212,6 +223,7 @@ pub fn base58_encode(data: &RecordBatch) -> Result<RecordBatch> {
     RecordBatch::try_new(Arc::new(schema), columns).context("construct arrow batch")
 }
 
+/// Encodes a single binary column to Base58 strings.
 pub fn base58_encode_column<I: OffsetSizeTrait>(
     col: &GenericBinaryArray<I>,
 ) -> GenericStringArray<I> {
@@ -239,6 +251,9 @@ pub fn base58_encode_column<I: OffsetSizeTrait>(
     clippy::unwrap_used,
     reason = "downcast is guaranteed by prior data type check"
 )]
+/// Encodes all Binary and LargeBinary columns in the batch to hex strings.
+///
+/// When `PREFIXED` is `true`, output strings include the `0x` prefix.
 pub fn hex_encode<const PREFIXED: bool>(data: &RecordBatch) -> Result<RecordBatch> {
     let schema = schema_binary_to_string(data.schema_ref());
     let mut columns = Vec::<Arc<dyn Array>>::with_capacity(data.columns().len());
@@ -260,6 +275,9 @@ pub fn hex_encode<const PREFIXED: bool>(data: &RecordBatch) -> Result<RecordBatc
     RecordBatch::try_new(Arc::new(schema), columns).context("construct arrow batch")
 }
 
+/// Encodes a single binary column to hex strings.
+///
+/// When `PREFIXED` is `true`, output strings include the `0x` prefix.
 pub fn hex_encode_column<const PREFIXED: bool, I: OffsetSizeTrait>(
     col: &GenericBinaryArray<I>,
 ) -> GenericStringArray<I> {
@@ -336,6 +354,7 @@ pub fn schema_decimal256_to_binary(schema: &Schema) -> Schema {
     Schema::new(fields)
 }
 
+/// Decodes a Base58-encoded string column to binary.
 pub fn base58_decode_column<I: OffsetSizeTrait>(
     col: &GenericStringArray<I>,
 ) -> Result<GenericBinaryArray<I>> {
@@ -359,6 +378,9 @@ pub fn base58_decode_column<I: OffsetSizeTrait>(
     Ok(arr.finish())
 }
 
+/// Decodes a hex-encoded string column to binary.
+///
+/// When `PREFIXED` is `true`, expects and strips the `0x` prefix from each value.
 pub fn hex_decode_column<const PREFIXED: bool, I: OffsetSizeTrait>(
     col: &GenericStringArray<I>,
 ) -> Result<GenericBinaryArray<I>> {
@@ -390,6 +412,7 @@ pub fn hex_decode_column<const PREFIXED: bool, I: OffsetSizeTrait>(
     Ok(arr.finish())
 }
 
+/// Converts a big-endian binary column (up to 32 bytes) to Decimal256(76,0).
 pub fn u256_column_from_binary<I: OffsetSizeTrait>(
     col: &GenericBinaryArray<I>,
 ) -> Result<Decimal256Array> {
@@ -415,6 +438,7 @@ pub fn u256_column_from_binary<I: OffsetSizeTrait>(
         .finish())
 }
 
+/// Converts a Decimal256(76,0) column to trimmed big-endian binary.
 pub fn u256_column_to_binary(col: &Decimal256Array) -> Result<BinaryArray> {
     let mut arr = builder::BinaryBuilder::with_capacity(col.len(), col.len() * 32);
 

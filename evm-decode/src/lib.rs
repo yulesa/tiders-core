@@ -1,3 +1,20 @@
+//! # tiders-evm-decode
+//!
+//! Decodes EVM smart contract data from binary format into Apache Arrow RecordBatches.
+//!
+//! Supports three types of decoding:
+//! - **Event logs** ([`decode_events`]) — Decodes indexed topics and non-indexed body data
+//!   using Solidity event signatures (e.g. `"Transfer(address indexed,address indexed,uint256)"`).
+//! - **Function call inputs** ([`decode_call_inputs`]) — Decodes ABI-encoded calldata.
+//! - **Function call outputs** ([`decode_call_outputs`]) — Decodes ABI-encoded return data.
+//!
+//! Also provides ABI parsing utilities ([`abi_events`], [`abi_functions`]) to extract
+//! event/function signatures from JSON ABI files, and schema generation functions
+//! to preview the Arrow output schema without decoding data.
+//!
+//! All decoded output uses Arrow's columnar format with support for arbitrarily nested
+//! Solidity types (tuples, arrays, structs) mapped to Arrow Struct and List types.
+
 mod abi;
 mod arrow_convert;
 
@@ -51,8 +68,6 @@ pub fn decode_call_outputs<I: OffsetSizeTrait>(
     decode_call_impl::<false, I>(signature, data, allow_decode_fail)
 }
 
-// IS_INPUT: true means we are decoding inputs
-// false means we are decoding outputs
 fn decode_call_impl<const IS_INPUT: bool, I: OffsetSizeTrait>(
     signature: &str,
     data: &GenericBinaryArray<I>,
@@ -110,7 +125,7 @@ fn decode_call_impl<const IS_INPUT: bool, I: OffsetSizeTrait>(
     RecordBatch::try_new(Arc::new(schema), arrays).context("construct arrow batch")
 }
 
-/// Returns (input schema, output schema)
+/// Returns the Arrow schemas for a function's inputs and outputs as `(input_schema, output_schema)`.
 pub fn function_signature_to_arrow_schemas(signature: &str) -> Result<(Schema, Schema)> {
     let (func, resolved) = resolve_function_signature(signature)?;
     function_signature_to_arrow_schemas_impl(&func, &resolved)
@@ -246,7 +261,7 @@ pub fn decode_events(
     RecordBatch::try_new(Arc::new(output_schema), arrays).context("construct arrow batch")
 }
 
-/// Generates Arrow schema based on given event signature
+/// Returns the Arrow schema that [`decode_events`] would produce for the given event signature.
 pub fn event_signature_to_arrow_schema(signature: &str) -> Result<Schema> {
     let (resolved, event) = resolve_event_signature(signature)?;
     event_signature_to_arrow_schema_impl(&resolved, &event)

@@ -1,9 +1,29 @@
+//! # tiders-evm-schema
+//!
+//! Pre-built Apache Arrow schemas and record batch builders for EVM blockchain data.
+//!
+//! Provides [`Schema`] definitions and corresponding builder structs for the four
+//! core EVM data tables:
+//!
+//! - **Blocks** ([`blocks_schema`] / [`BlocksBuilder`]) — Block headers including
+//!   hash, gas, timestamps, withdrawals, and L1/L2-specific fields.
+//! - **Transactions** ([`transactions_schema`] / [`TransactionsBuilder`]) — Full
+//!   transaction data with receipt fields, access lists, and L1/L2 fee fields.
+//! - **Logs** ([`logs_schema`] / [`LogsBuilder`]) — Event logs with topic0–topic3
+//!   and data columns.
+//! - **Traces** ([`traces_schema`] / [`TracesBuilder`]) — Execution traces including
+//!   call type, gas, value, and trace address.
+//!
+//! Numeric fields that may exceed 64 bits (gas, value, timestamps) use
+//! `Decimal256(76, 0)`. Addresses and hashes are stored as `Binary`.
+
 use std::sync::Arc;
 
 use arrow::array::builder;
 use arrow::datatypes::{DataType, Field, Fields, Schema};
 use arrow::record_batch::RecordBatch;
 
+/// Returns the Arrow schema for EVM block data.
 pub fn blocks_schema() -> Schema {
     Schema::new(vec![
         Field::new("number", DataType::UInt64, true),
@@ -54,6 +74,7 @@ fn withdrawal_dt() -> DataType {
     ]))
 }
 
+/// Returns the Arrow schema for EVM transaction data (including receipt fields).
 pub fn transactions_schema() -> Schema {
     Schema::new(vec![
         Field::new("block_hash", DataType::Binary, true),
@@ -68,8 +89,6 @@ pub fn transactions_schema() -> Schema {
         Field::new("transaction_index", DataType::UInt64, true),
         Field::new("value", DataType::Decimal256(76, 0), true),
         Field::new("v", DataType::UInt8, true),
-        // keep these binary even though they are uint256 because they don't fit in i256 in
-        // practice
         Field::new("r", DataType::Binary, true),
         Field::new("s", DataType::Binary, true),
         Field::new(
@@ -129,6 +148,7 @@ fn access_list_elem_dt() -> DataType {
     ]))
 }
 
+/// Returns the Arrow schema for EVM event log data.
 pub fn logs_schema() -> Schema {
     Schema::new(vec![
         Field::new("removed", DataType::Boolean, true),
@@ -146,6 +166,7 @@ pub fn logs_schema() -> Schema {
     ])
 }
 
+/// Returns the Arrow schema for EVM execution trace data.
 pub fn traces_schema() -> Schema {
     Schema::new(vec![
         Field::new("from", DataType::Binary, true),
@@ -180,6 +201,7 @@ pub fn traces_schema() -> Schema {
     ])
 }
 
+/// Builder for constructing an EVM blocks RecordBatch row-by-row.
 #[derive(Default)]
 pub struct BlocksBuilder {
     pub number: builder::UInt64Builder,
@@ -212,6 +234,7 @@ pub struct BlocksBuilder {
     pub mix_hash: builder::BinaryBuilder,
 }
 
+/// Builder for the nested withdrawals list within a block.
 pub struct WithdrawalsBuilder(pub builder::ListBuilder<builder::StructBuilder>);
 
 impl Default for WithdrawalsBuilder {
@@ -240,6 +263,7 @@ impl Default for WithdrawalsBuilder {
 }
 
 impl BlocksBuilder {
+    /// Consumes the builder and returns the completed RecordBatch.
     #[expect(
         clippy::unwrap_used,
         reason = "schema and precision/scale are compile-time constants"
@@ -327,6 +351,7 @@ impl BlocksBuilder {
     }
 }
 
+/// Builder for constructing an EVM transactions RecordBatch row-by-row.
 #[derive(Default)]
 pub struct TransactionsBuilder {
     pub block_hash: builder::BinaryBuilder,
@@ -341,7 +366,9 @@ pub struct TransactionsBuilder {
     pub transaction_index: builder::UInt64Builder,
     pub value: builder::Decimal256Builder,
     pub v: builder::UInt8Builder,
+    /// Kept as `Binary` even though r/s are uint256, because they don't fit in i256 in practice.
     pub r: builder::BinaryBuilder,
+    /// Kept as `Binary` even though r/s are uint256, because they don't fit in i256 in practice.
     pub s: builder::BinaryBuilder,
     pub max_priority_fee_per_gas: builder::Decimal256Builder,
     pub max_fee_per_gas: builder::Decimal256Builder,
@@ -376,6 +403,7 @@ pub struct TransactionsBuilder {
     pub source_hash: builder::BinaryBuilder,
 }
 
+/// Builder for the nested access list within a transaction.
 pub struct AccessListBuilder(pub builder::ListBuilder<builder::StructBuilder>);
 
 impl Default for AccessListBuilder {
@@ -394,6 +422,7 @@ impl Default for AccessListBuilder {
 }
 
 impl TransactionsBuilder {
+    /// Consumes the builder and returns the completed RecordBatch.
     #[expect(
         clippy::unwrap_used,
         reason = "schema and precision/scale are compile-time constants"
@@ -553,6 +582,7 @@ impl TransactionsBuilder {
     }
 }
 
+/// Builder for constructing an EVM logs RecordBatch row-by-row.
 #[derive(Default)]
 pub struct LogsBuilder {
     pub removed: builder::BooleanBuilder,
@@ -570,6 +600,7 @@ pub struct LogsBuilder {
 }
 
 impl LogsBuilder {
+    /// Consumes the builder and returns the completed RecordBatch.
     #[expect(clippy::unwrap_used, reason = "schema is a compile-time constant")]
     pub fn finish(mut self) -> RecordBatch {
         RecordBatch::try_new(
@@ -593,6 +624,7 @@ impl LogsBuilder {
     }
 }
 
+/// Builder for constructing an EVM traces RecordBatch row-by-row.
 #[derive(Default)]
 pub struct TracesBuilder {
     pub from: builder::BinaryBuilder,
@@ -623,6 +655,7 @@ pub struct TracesBuilder {
 }
 
 impl TracesBuilder {
+    /// Consumes the builder and returns the completed RecordBatch.
     #[expect(
         clippy::unwrap_used,
         reason = "schema and precision/scale are compile-time constants"

@@ -1,9 +1,28 @@
+//! # tiders-svm-schema
+//!
+//! Pre-built Apache Arrow schemas and record batch builders for Solana (SVM) blockchain data.
+//!
+//! Provides [`Schema`] definitions and corresponding builder structs for seven
+//! Solana data tables:
+//!
+//! - **Blocks** ([`blocks_schema`] / [`BlocksBuilder`]) — Slot, hash, parent slot/hash, height, timestamp.
+//! - **Rewards** ([`rewards_schema`] / [`RewardsBuilder`]) — Validator rewards per slot.
+//! - **Token Balances** ([`token_balances_schema`] / [`TokenBalancesBuilder`]) — SPL token balance changes (pre/post).
+//! - **Balances** ([`balances_schema`] / [`BalancesBuilder`]) — Native SOL balance changes (pre/post).
+//! - **Logs** ([`logs_schema`] / [`LogsBuilder`]) — Program log messages.
+//! - **Transactions** ([`transactions_schema`] / [`TransactionsBuilder`]) — Transaction data with signatures and account keys.
+//! - **Instructions** ([`instructions_schema`] / [`InstructionsBuilder`]) — Instruction data with accounts (a0–a9) and discriminator fields (d1–d8).
+//!
+//! Addresses and hashes are stored as `Binary`. Account fields `a0`–`a9` hold the first
+//! 10 instruction accounts, with overflow in `rest_of_accounts`.
+
 use std::sync::Arc;
 
 use arrow::array::builder;
 use arrow::datatypes::{DataType, Field, Fields, Schema};
 use arrow::record_batch::RecordBatch;
 
+/// Returns the Arrow schema for Solana block (slot) data.
 pub fn blocks_schema() -> Schema {
     Schema::new(vec![
         Field::new("slot", DataType::UInt64, true),
@@ -15,6 +34,7 @@ pub fn blocks_schema() -> Schema {
     ])
 }
 
+/// Returns the Arrow schema for Solana validator reward data.
 pub fn rewards_schema() -> Schema {
     Schema::new(vec![
         Field::new("block_slot", DataType::UInt64, true),
@@ -27,6 +47,7 @@ pub fn rewards_schema() -> Schema {
     ])
 }
 
+/// Returns the Arrow schema for Solana SPL token balance change data.
 pub fn token_balances_schema() -> Schema {
     Schema::new(vec![
         Field::new("block_slot", DataType::UInt64, true),
@@ -46,6 +67,7 @@ pub fn token_balances_schema() -> Schema {
     ])
 }
 
+/// Returns the Arrow schema for Solana native SOL balance change data.
 pub fn balances_schema() -> Schema {
     Schema::new(vec![
         Field::new("block_slot", DataType::UInt64, true),
@@ -57,6 +79,7 @@ pub fn balances_schema() -> Schema {
     ])
 }
 
+/// Returns the Arrow schema for Solana program log data.
 pub fn logs_schema() -> Schema {
     Schema::new(vec![
         Field::new("block_slot", DataType::UInt64, true),
@@ -74,6 +97,7 @@ pub fn logs_schema() -> Schema {
     ])
 }
 
+/// Returns the Arrow schema for Solana transaction data.
 pub fn transactions_schema() -> Schema {
     Schema::new(vec![
         Field::new("block_slot", DataType::UInt64, true),
@@ -104,7 +128,6 @@ pub fn transactions_schema() -> Schema {
             DataType::List(Arc::new(Field::new("item", DataType::Binary, true))),
             true,
         ),
-        // encoded as json string
         Field::new("err", DataType::Utf8, true),
         Field::new("fee", DataType::UInt64, true),
         Field::new("compute_units_consumed", DataType::UInt64, true),
@@ -139,6 +162,7 @@ fn address_table_lookup_dt() -> DataType {
     ]))
 }
 
+/// Returns the Arrow schema for Solana instruction data.
 pub fn instructions_schema() -> Schema {
     Schema::new(vec![
         Field::new("block_slot", DataType::UInt64, true),
@@ -160,7 +184,6 @@ pub fn instructions_schema() -> Schema {
         Field::new("a7", DataType::Binary, true),
         Field::new("a8", DataType::Binary, true),
         Field::new("a9", DataType::Binary, true),
-        // accounts starting from index 10
         Field::new(
             "rest_of_accounts",
             DataType::List(Arc::new(Field::new("item", DataType::Binary, true))),
@@ -178,6 +201,7 @@ pub fn instructions_schema() -> Schema {
     ])
 }
 
+/// Builder for constructing a Solana blocks RecordBatch row-by-row.
 #[derive(Default)]
 pub struct BlocksBuilder {
     pub slot: builder::UInt64Builder,
@@ -189,6 +213,7 @@ pub struct BlocksBuilder {
 }
 
 impl BlocksBuilder {
+    /// Consumes the builder and returns the completed RecordBatch.
     #[expect(clippy::unwrap_used, reason = "schema is a compile-time constant")]
     pub fn finish(mut self) -> RecordBatch {
         RecordBatch::try_new(
@@ -206,6 +231,7 @@ impl BlocksBuilder {
     }
 }
 
+/// Builder for constructing a Solana rewards RecordBatch row-by-row.
 #[derive(Default)]
 pub struct RewardsBuilder {
     pub block_slot: builder::UInt64Builder,
@@ -218,6 +244,7 @@ pub struct RewardsBuilder {
 }
 
 impl RewardsBuilder {
+    /// Consumes the builder and returns the completed RecordBatch.
     #[expect(clippy::unwrap_used, reason = "schema is a compile-time constant")]
     pub fn finish(mut self) -> RecordBatch {
         RecordBatch::try_new(
@@ -236,6 +263,7 @@ impl RewardsBuilder {
     }
 }
 
+/// Builder for constructing a Solana token balances RecordBatch row-by-row.
 #[derive(Default)]
 pub struct TokenBalancesBuilder {
     pub block_slot: builder::UInt64Builder,
@@ -255,6 +283,7 @@ pub struct TokenBalancesBuilder {
 }
 
 impl TokenBalancesBuilder {
+    /// Consumes the builder and returns the completed RecordBatch.
     #[expect(clippy::unwrap_used, reason = "schema is a compile-time constant")]
     pub fn finish(mut self) -> RecordBatch {
         RecordBatch::try_new(
@@ -280,6 +309,7 @@ impl TokenBalancesBuilder {
     }
 }
 
+/// Builder for constructing a Solana balances RecordBatch row-by-row.
 #[derive(Default)]
 pub struct BalancesBuilder {
     pub block_slot: builder::UInt64Builder,
@@ -291,6 +321,7 @@ pub struct BalancesBuilder {
 }
 
 impl BalancesBuilder {
+    /// Consumes the builder and returns the completed RecordBatch.
     #[expect(clippy::unwrap_used, reason = "schema is a compile-time constant")]
     pub fn finish(mut self) -> RecordBatch {
         RecordBatch::try_new(
@@ -308,6 +339,7 @@ impl BalancesBuilder {
     }
 }
 
+/// Builder for constructing a Solana logs RecordBatch row-by-row.
 #[derive(Default)]
 pub struct LogsBuilder {
     pub block_slot: builder::UInt64Builder,
@@ -321,6 +353,7 @@ pub struct LogsBuilder {
 }
 
 impl LogsBuilder {
+    /// Consumes the builder and returns the completed RecordBatch.
     #[expect(clippy::unwrap_used, reason = "schema is a compile-time constant")]
     pub fn finish(mut self) -> RecordBatch {
         RecordBatch::try_new(
@@ -340,6 +373,7 @@ impl LogsBuilder {
     }
 }
 
+/// Builder for constructing a Solana transactions RecordBatch row-by-row.
 #[derive(Default)]
 pub struct TransactionsBuilder {
     pub block_slot: builder::UInt64Builder,
@@ -354,6 +388,7 @@ pub struct TransactionsBuilder {
     pub num_required_signatures: builder::UInt32Builder,
     pub recent_blockhash: builder::BinaryBuilder,
     pub signatures: builder::ListBuilder<builder::BinaryBuilder>,
+    /// Encoded as JSON string.
     pub err: builder::StringBuilder,
     pub fee: builder::UInt64Builder,
     pub compute_units_consumed: builder::UInt64Builder,
@@ -363,6 +398,7 @@ pub struct TransactionsBuilder {
     pub has_dropped_log_messages: builder::BooleanBuilder,
 }
 
+/// Builder for the nested address table lookups list within a transaction.
 pub struct AddressTableLookupsBuilder(pub builder::ListBuilder<builder::StructBuilder>);
 
 impl Default for AddressTableLookupsBuilder {
@@ -382,6 +418,7 @@ impl Default for AddressTableLookupsBuilder {
 }
 
 impl TransactionsBuilder {
+    /// Consumes the builder and returns the completed RecordBatch.
     #[expect(clippy::unwrap_used, reason = "schema is a compile-time constant")]
     pub fn finish(mut self) -> RecordBatch {
         RecordBatch::try_new(
@@ -412,6 +449,7 @@ impl TransactionsBuilder {
     }
 }
 
+/// Builder for constructing a Solana instructions RecordBatch row-by-row.
 #[derive(Default)]
 pub struct InstructionsBuilder {
     pub block_slot: builder::UInt64Builder,
@@ -429,6 +467,7 @@ pub struct InstructionsBuilder {
     pub a7: builder::BinaryBuilder,
     pub a8: builder::BinaryBuilder,
     pub a9: builder::BinaryBuilder,
+    /// Accounts starting from index 10.
     pub rest_of_accounts: builder::ListBuilder<builder::BinaryBuilder>,
     pub data: builder::BinaryBuilder,
     pub d1: builder::BinaryBuilder,
@@ -442,6 +481,7 @@ pub struct InstructionsBuilder {
 }
 
 impl InstructionsBuilder {
+    /// Consumes the builder and returns the completed RecordBatch.
     #[expect(clippy::unwrap_used, reason = "schema is a compile-time constant")]
     pub fn finish(mut self) -> RecordBatch {
         RecordBatch::try_new(

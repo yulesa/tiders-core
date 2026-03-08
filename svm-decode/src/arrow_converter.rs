@@ -305,7 +305,6 @@ fn to_binary(value: &[Option<DynValue>]) -> Result<Arc<dyn Array>> {
     for val in value {
         match val {
             Some(DynValue::Array(data)) => {
-                // Collect all u8 values into a Vec<u8>
                 let bytes: Result<Vec<u8>> = data
                     .iter()
                     .map(|v| match v {
@@ -313,8 +312,6 @@ fn to_binary(value: &[Option<DynValue>]) -> Result<Arc<dyn Array>> {
                         _ => Err(anyhow!("Expected binary type, found: {v:?}")),
                     })
                     .collect();
-
-                // Append the collected bytes as a single binary value
                 builder.append_value(&bytes?);
             }
             Some(val) => return Err(anyhow!("Expected binary type, found: {val:?}")),

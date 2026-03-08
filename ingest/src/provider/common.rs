@@ -1,3 +1,8 @@
+//! Shared query conversion logic between provider backends.
+//!
+//! Converts EVM and SVM queries into a generic [`tiders_query::Query`]
+//! for local post-filtering after data is fetched from a provider.
+
 use crate::{evm, svm};
 use anyhow::{anyhow, Result};
 use arrow::array::{Array, BinaryArray, StringArray, UInt8Array};

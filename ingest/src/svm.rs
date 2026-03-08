@@ -1,8 +1,11 @@
+//! SVM (Solana) query types and field selection for the ingest layer.
+
 #[cfg(feature = "pyo3")]
 use anyhow::Context;
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 
+/// SVM (Solana) blockchain data query specifying slot range, filters, and field selections.
 #[derive(Default, Debug, Clone)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
 pub struct Query {
@@ -18,24 +21,31 @@ pub struct Query {
     pub rewards: Vec<RewardRequest>,
 }
 
+/// A 32-byte Solana public key.
 #[derive(Debug, Clone, Copy)]
 pub struct Address(pub [u8; 32]);
 
+/// Variable-length binary data (instruction data or discriminator).
 #[derive(Debug, Clone)]
 pub struct Data(pub Vec<u8>);
 
+/// Fixed-size data prefix for instruction filtering (1 byte).
 #[derive(Debug, Clone, Copy)]
 pub struct D1(pub [u8; 1]);
 
+/// Fixed-size data prefix for instruction filtering (2 bytes).
 #[derive(Debug, Clone, Copy)]
 pub struct D2(pub [u8; 2]);
 
+/// Fixed-size data prefix for instruction filtering (3 bytes).
 #[derive(Debug, Clone, Copy)]
 pub struct D3(pub [u8; 3]);
 
+/// Fixed-size data prefix for instruction filtering (4 bytes).
 #[derive(Debug, Clone, Copy)]
 pub struct D4(pub [u8; 4]);
 
+/// Fixed-size data prefix for instruction filtering (8 bytes).
 #[derive(Debug, Clone, Copy)]
 pub struct D8(pub [u8; 8]);
 
@@ -175,6 +185,7 @@ impl<'py> pyo3::FromPyObject<'py> for D8 {
     }
 }
 
+/// Filters for selecting Solana instructions by program ID, discriminator, and accounts.
 #[derive(Default, Debug, Clone)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
 #[expect(clippy::struct_excessive_bools, reason = "fields selection flags")]
@@ -204,6 +215,7 @@ pub struct InstructionRequest {
     pub include_blocks: bool,
 }
 
+/// Filters for selecting Solana transactions by fee payer.
 #[derive(Default, Debug, Clone)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
 pub struct TransactionRequest {
@@ -213,6 +225,7 @@ pub struct TransactionRequest {
     pub include_blocks: bool,
 }
 
+/// Filters for selecting Solana program logs by program ID and kind.
 #[derive(Default, Debug, Clone)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
 pub struct LogRequest {
@@ -223,10 +236,14 @@ pub struct LogRequest {
     pub include_blocks: bool,
 }
 
+/// The type of Solana program log message.
 #[derive(Debug, Clone, Copy)]
 pub enum LogKind {
+    /// Standard program log message (sol_log).
     Log,
+    /// Base64-encoded program data message (sol_log_data).
     Data,
+    /// Other log message types.
     Other,
 }
 
@@ -260,6 +277,7 @@ impl<'py> pyo3::FromPyObject<'py> for LogKind {
     }
 }
 
+/// Filters for selecting Solana native SOL balance changes.
 #[derive(Default, Debug, Clone)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
 pub struct BalanceRequest {
@@ -269,6 +287,7 @@ pub struct BalanceRequest {
     pub include_blocks: bool,
 }
 
+/// Filters for selecting Solana SPL token balance changes.
 #[derive(Default, Debug, Clone)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
 pub struct TokenBalanceRequest {
@@ -284,6 +303,7 @@ pub struct TokenBalanceRequest {
     pub include_blocks: bool,
 }
 
+/// Filters for selecting Solana validator rewards.
 #[derive(Default, Debug, Clone)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
 pub struct RewardRequest {
@@ -291,6 +311,7 @@ pub struct RewardRequest {
     pub include_blocks: bool,
 }
 
+/// Controls which columns are included in the response for each SVM table type.
 #[derive(Deserialize, Serialize, Default, Debug, Clone, Copy)]
 #[serde(default)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
@@ -318,6 +339,7 @@ impl Fields {
     }
 }
 
+/// Field selector for Solana instruction data columns.
 #[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(default)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
@@ -382,6 +404,7 @@ impl InstructionFields {
     }
 }
 
+/// Field selector for Solana transaction data columns.
 #[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(default)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
@@ -434,6 +457,7 @@ impl TransactionFields {
     }
 }
 
+/// Field selector for Solana log data columns.
 #[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(default)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
@@ -464,6 +488,7 @@ impl LogFields {
     }
 }
 
+/// Field selector for Solana balance data columns.
 #[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(default)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
@@ -490,6 +515,7 @@ impl BalanceFields {
     }
 }
 
+/// Field selector for Solana token balance data columns.
 #[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(default)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
@@ -532,6 +558,7 @@ impl TokenBalanceFields {
     }
 }
 
+/// Field selector for Solana reward data columns.
 #[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(default)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
@@ -560,6 +587,7 @@ impl RewardFields {
     }
 }
 
+/// Field selector for Solana block data columns.
 #[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(default)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]

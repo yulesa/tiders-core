@@ -1,3 +1,16 @@
+//! # tiders-svm-decode
+//!
+//! Decodes Solana (SVM) program data from binary format into Apache Arrow RecordBatches.
+//!
+//! Supports two types of decoding:
+//! - **Instructions** — Decodes Borsh-serialized instruction data using 8-byte discriminators
+//!   and a typed parameter schema ([`InstructionSignature`]).
+//! - **Program logs** — Decodes base64-encoded log event data using a typed parameter
+//!   schema ([`LogSignature`]).
+//!
+//! The type system ([`DynType`] / [`DynValue`]) supports all Borsh primitives (i8–i128,
+//! u8–u128, bool) plus complex types (arrays, structs, enums, options).
+
 use anyhow::{anyhow, Context, Result};
 use arrow::array::{
     builder, Array, BinaryArray, BooleanArray, GenericBinaryArray, GenericListArray,
@@ -15,6 +28,7 @@ pub use deserialize::{deserialize_data, DynType, DynValue, ParamInput};
 mod arrow_converter;
 use arrow_converter::{to_arrow, to_arrow_dtype};
 
+/// Defines the schema for decoding a Solana instruction: discriminator bytes, parameter types, and account names.
 #[derive(Debug, Clone)]
 pub struct InstructionSignature {
     pub discriminator: Vec<u8>,
@@ -22,6 +36,7 @@ pub struct InstructionSignature {
     pub accounts_names: Vec<String>,
 }
 
+/// Defines the schema for decoding a Solana program log event: parameter types to decode from base64 data.
 #[derive(Debug, Clone)]
 pub struct LogSignature {
     pub params: Vec<ParamInput>,
@@ -129,6 +144,10 @@ fn unpack_rest_of_accounts<ListI: OffsetSizeTrait, InnerI: OffsetSizeTrait>(
     Ok(())
 }
 
+/// Decodes instruction data from an Arrow `RecordBatch` into a new `RecordBatch` of decoded parameters and accounts.
+///
+/// Expects the input batch to contain `data` (binary) and `accounts` (list-of-binary) columns.
+/// Optionally filters rows by discriminator match and horizontally stacks the result with the original batch.
 pub fn decode_instructions_batch(
     signature: &InstructionSignature,
     batch: &RecordBatch,
@@ -387,6 +406,10 @@ pub fn decode_instructions<I: OffsetSizeTrait>(
     Ok(batch)
 }
 
+/// Decodes log event data from an Arrow `RecordBatch` into a new `RecordBatch` of decoded parameters.
+///
+/// Expects the input batch to contain a `message` column (Utf8 or LargeUtf8) with base64-encoded event data.
+/// Optionally horizontally stacks the result with the original batch.
 pub fn decode_logs_batch(
     signature: &LogSignature,
     batch: &RecordBatch,
@@ -426,6 +449,11 @@ pub fn decode_logs_batch(
     }
 }
 
+/// Decodes base64-encoded log messages into a `RecordBatch` of typed parameter columns.
+///
+/// Each row's string value is base64-decoded and then Borsh-deserialized according to the
+/// parameter types in `signature`. Rows that fail to decode are filled with nulls when
+/// `allow_decode_fail` is `true`.
 pub fn decode_logs<I: OffsetSizeTrait>(
     signature: &LogSignature,
     data: &GenericStringArray<I>,
@@ -594,6 +622,8 @@ fn hstack_impl(decoded: &RecordBatch, input: &RecordBatch) -> Result<RecordBatch
     RecordBatch::try_new(Arc::new(schema), arrays).context("construct hstacked arrow batch")
 }
 
+/// Converts an [`InstructionSignature`] into an Arrow [`Schema`], mapping each parameter
+/// and account name to the corresponding Arrow field and data type.
 pub fn instruction_signature_to_arrow_schema(signature: &InstructionSignature) -> Result<Schema> {
     let mut fields = Vec::new();
 

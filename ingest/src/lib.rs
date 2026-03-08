@@ -7,6 +7,20 @@
     reason = "ProviderConfig is built by setting fields after construction"
 )]
 
+//! # tiders-ingest
+//!
+//! Streams blockchain data from multiple provider backends as Apache Arrow RecordBatches.
+//!
+//! Supports both EVM (Ethereum) and SVM (Solana) chains through a unified [`Query`] enum.
+//! Data is fetched from one of three provider backends:
+//!
+//! - **SQD** ([`ProviderKind::Sqd`]) — SQD Network portal for historical data.
+//! - **HyperSync** ([`ProviderKind::Hypersync`]) — Envio HyperSync for fast historical data.
+//! - **RPC** ([`ProviderKind::Rpc`]) — Direct JSON-RPC node connection.
+//!
+//! Use [`start_stream`] to create an async stream of `BTreeMap<String, RecordBatch>` where
+//! keys are table names (e.g. "blocks", "transactions", "logs").
+
 use std::{collections::BTreeMap, pin::Pin, sync::Arc};
 
 #[cfg(feature = "pyo3")]
@@ -22,6 +36,7 @@ mod provider;
 mod rayon_async;
 pub mod svm;
 
+/// Top-level query type: either an EVM or SVM blockchain data query.
 #[derive(Debug, Clone)]
 pub enum Query {
     Evm(evm::Query),
@@ -46,6 +61,7 @@ impl<'py> pyo3::FromPyObject<'py> for Query {
     }
 }
 
+/// Configuration for a data provider, including connection details and retry settings.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "pyo3", derive(pyo3::FromPyObject))]
 pub struct ProviderConfig {
@@ -89,9 +105,12 @@ impl ProviderConfig {
     }
 }
 
+/// Selects which RPC method to use for fetching EVM execution traces.
 #[derive(Debug, Clone, Copy)]
 pub enum RpcTraceMethod {
+    /// Uses `trace_block` (Parity/OpenEthereum style).
     TraceBlock,
+    /// Uses `debug_traceBlockByNumber` (Geth style).
     DebugTraceBlockByNumber,
 }
 
@@ -110,10 +129,14 @@ impl<'py> pyo3::FromPyObject<'py> for RpcTraceMethod {
     }
 }
 
+/// The type of data provider backend.
 #[derive(Debug, Clone, Copy)]
 pub enum ProviderKind {
+    /// SQD Network portal.
     Sqd,
+    /// Envio HyperSync.
     Hypersync,
+    /// Direct JSON-RPC node.
     Rpc,
 }
 
@@ -160,6 +183,7 @@ fn make_req_fields<T: DeserializeOwned>(query: &tiders_query::Query) -> Result<T
     serde_json::from_value(json_value).context("deserialize fields from JSON")
 }
 
+/// Creates an async stream of Arrow RecordBatches from the configured provider.
 pub async fn start_stream(provider_config: ProviderConfig, mut query: Query) -> Result<DataStream> {
     let generic_query = match &mut query {
         Query::Evm(evm_query) => {
