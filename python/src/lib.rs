@@ -63,6 +63,10 @@ fn tiders_core(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
         m
     )?)?;
     m.add_function(wrap_pyfunction!(evm_signature_to_topic0, m)?)?;
+    m.add_class::<EvmAbiEvent>()?;
+    m.add_class::<EvmAbiFunction>()?;
+    m.add_function(wrap_pyfunction!(evm_abi_events, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_abi_functions, m)?)?;
     m.add_function(wrap_pyfunction!(base58_encode_bytes, m)?)?;
     m.add_function(wrap_pyfunction!(base58_decode_string, m)?)?;
     ingest::ingest_module(py, m)?;
@@ -574,6 +578,56 @@ fn evm_signature_to_topic0(signature: &str) -> PyResult<String> {
     let topic0 = baselib::evm_decode::signature_to_topic0(signature)?;
 
     Ok(format!("0x{}", faster_hex::hex_string(topic0.as_slice())))
+}
+
+#[pyclass(frozen, get_all)]
+#[derive(Clone)]
+struct EvmAbiEvent {
+    name: String,
+    name_snake_case: String,
+    signature: String,
+    selector_signature: String,
+    topic0: String,
+}
+
+#[pyclass(frozen, get_all)]
+#[derive(Clone)]
+struct EvmAbiFunction {
+    name: String,
+    name_snake_case: String,
+    signature: String,
+    selector_signature: String,
+    selector: String,
+}
+
+#[pyfunction]
+fn evm_abi_events(json_str: &str) -> PyResult<Vec<EvmAbiEvent>> {
+    let events = baselib::evm_decode::abi_events(json_str).context("parse abi events")?;
+    Ok(events
+        .into_iter()
+        .map(|e| EvmAbiEvent {
+            name: e.name,
+            name_snake_case: e.name_snake_case,
+            signature: e.signature,
+            selector_signature: e.selector_signature,
+            topic0: e.topic0,
+        })
+        .collect())
+}
+
+#[pyfunction]
+fn evm_abi_functions(json_str: &str) -> PyResult<Vec<EvmAbiFunction>> {
+    let functions = baselib::evm_decode::abi_functions(json_str).context("parse abi functions")?;
+    Ok(functions
+        .into_iter()
+        .map(|f| EvmAbiFunction {
+            name: f.name,
+            name_snake_case: f.name_snake_case,
+            signature: f.signature,
+            selector_signature: f.selector_signature,
+            selector: f.selector,
+        })
+        .collect())
 }
 
 #[pyfunction]

@@ -1,0 +1,601 @@
+use std::sync::Arc;
+
+use alloy_dyn_abi::{DynSolType, DynSolValue};
+use alloy_primitives::{I256, U256};
+use anyhow::{anyhow, Context, Result};
+use arrow::{
+    array::{
+        builder, Array, ArrowPrimitiveType, BooleanArray, GenericBinaryArray, ListArray,
+        OffsetSizeTrait, RecordBatch, StructArray,
+    },
+    buffer::{NullBuffer, OffsetBuffer},
+    datatypes::{
+        DataType, Field, Fields, Int16Type, Int32Type, Int64Type, Int8Type, Schema, UInt16Type,
+        UInt32Type, UInt64Type, UInt8Type,
+    },
+};
+
+pub(crate) fn to_arrow_dtype(sol_type: &DynSolType) -> Result<DataType> {
+    match sol_type {
+        DynSolType::Bool => Ok(DataType::Boolean),
+        DynSolType::Bytes | DynSolType::Address | DynSolType::FixedBytes(_) => Ok(DataType::Binary),
+        DynSolType::String => Ok(DataType::Utf8),
+        DynSolType::Int(num_bits) => Ok(num_bits_to_int_type(*num_bits)),
+        DynSolType::Uint(num_bits) => Ok(num_bits_to_uint_type(*num_bits)),
+        DynSolType::Array(inner_type) | DynSolType::FixedArray(inner_type, _) => {
+            let inner_type = to_arrow_dtype(inner_type).context("map inner")?;
+            Ok(DataType::List(Arc::new(Field::new("", inner_type, true))))
+        }
+        DynSolType::Function => Err(anyhow!(
+            "decoding 'Function' typed value in function signature isn't supported."
+        )),
+        DynSolType::Tuple(fields) => {
+            let mut arrow_fields = Vec::<Arc<Field>>::with_capacity(fields.len());
+
+            for (i, f) in fields.iter().enumerate() {
+                let inner_dt = to_arrow_dtype(f).context("map field dt")?;
+                arrow_fields.push(Arc::new(Field::new(format!("param{i}"), inner_dt, true)));
+            }
+
+            Ok(DataType::Struct(Fields::from(arrow_fields)))
+        }
+    }
+}
+
+pub(crate) fn num_bits_to_uint_type(num_bits: usize) -> DataType {
+    if num_bits <= 8 {
+        DataType::UInt8
+    } else if num_bits <= 16 {
+        DataType::UInt16
+    } else if num_bits <= 32 {
+        DataType::UInt32
+    } else if num_bits <= 64 {
+        DataType::UInt64
+    } else if num_bits <= 128 {
+        DataType::Decimal128(38, 0)
+    } else if num_bits <= 256 {
+        DataType::Decimal256(76, 0)
+    } else {
+        unreachable!()
+    }
+}
+
+pub(crate) fn num_bits_to_int_type(num_bits: usize) -> DataType {
+    if num_bits <= 8 {
+        DataType::Int8
+    } else if num_bits <= 16 {
+        DataType::Int16
+    } else if num_bits <= 32 {
+        DataType::Int32
+    } else if num_bits <= 64 {
+        DataType::Int64
+    } else if num_bits <= 128 {
+        DataType::Decimal128(38, 0)
+    } else if num_bits <= 256 {
+        DataType::Decimal256(76, 0)
+    } else {
+        unreachable!()
+    }
+}
+
+pub(crate) fn to_arrow(
+    sol_type: &DynSolType,
+    sol_values: Vec<Option<DynSolValue>>,
+    allow_decode_fail: bool,
+) -> Result<Arc<dyn Array>> {
+    match sol_type {
+        DynSolType::Bool => to_bool(&sol_values),
+        DynSolType::Bytes | DynSolType::Address | DynSolType::FixedBytes(_) => {
+            to_binary(&sol_values)
+        }
+        DynSolType::String => to_string(&sol_values),
+        DynSolType::Int(num_bits) => to_int(*num_bits, &sol_values, allow_decode_fail),
+        DynSolType::Uint(num_bits) => to_uint(*num_bits, &sol_values, allow_decode_fail),
+        DynSolType::Array(inner_type) | DynSolType::FixedArray(inner_type, _) => {
+            to_list(inner_type, sol_values, allow_decode_fail)
+        }
+        DynSolType::Function => Err(anyhow!(
+            "decoding 'Function' typed value in function signature isn't supported."
+        )),
+        DynSolType::Tuple(fields) => to_struct(fields, sol_values, allow_decode_fail),
+    }
+}
+
+fn to_int(
+    num_bits: usize,
+    sol_values: &[Option<DynSolValue>],
+    allow_decode_fail: bool,
+) -> Result<Arc<dyn Array>> {
+    match num_bits_to_int_type(num_bits) {
+        DataType::Int8 => to_int_impl::<Int8Type>(num_bits, sol_values, allow_decode_fail),
+        DataType::Int16 => to_int_impl::<Int16Type>(num_bits, sol_values, allow_decode_fail),
+        DataType::Int32 => to_int_impl::<Int32Type>(num_bits, sol_values, allow_decode_fail),
+        DataType::Int64 => to_int_impl::<Int64Type>(num_bits, sol_values, allow_decode_fail),
+        DataType::Decimal128(_, _) => to_decimal128(num_bits, sol_values, allow_decode_fail),
+        DataType::Decimal256(_, _) => to_decimal256(num_bits, sol_values, allow_decode_fail),
+        dt => Err(anyhow!("unexpected int data type: {dt:?}")),
+    }
+}
+
+fn to_uint(
+    num_bits: usize,
+    sol_values: &[Option<DynSolValue>],
+    allow_decode_fail: bool,
+) -> Result<Arc<dyn Array>> {
+    match num_bits_to_uint_type(num_bits) {
+        DataType::UInt8 => to_int_impl::<UInt8Type>(num_bits, sol_values, allow_decode_fail),
+        DataType::UInt16 => to_int_impl::<UInt16Type>(num_bits, sol_values, allow_decode_fail),
+        DataType::UInt32 => to_int_impl::<UInt32Type>(num_bits, sol_values, allow_decode_fail),
+        DataType::UInt64 => to_int_impl::<UInt64Type>(num_bits, sol_values, allow_decode_fail),
+        DataType::Decimal128(_, _) => to_decimal128(num_bits, sol_values, allow_decode_fail),
+        DataType::Decimal256(_, _) => to_decimal256(num_bits, sol_values, allow_decode_fail),
+        dt => Err(anyhow!("unexpected uint data type: {dt:?}")),
+    }
+}
+
+fn to_decimal128(
+    num_bits: usize,
+    sol_values: &[Option<DynSolValue>],
+    allow_decode_fail: bool,
+) -> Result<Arc<dyn Array>> {
+    let mut builder = builder::Decimal128Builder::new();
+
+    for val in sol_values {
+        match val {
+            Some(val) => match val {
+                DynSolValue::Int(v, nb) => {
+                    if num_bits != *nb {
+                        return Err(anyhow!("bit width mismatch: expected {num_bits}, got {nb}"));
+                    }
+
+                    match i128::try_from(*v) {
+                        Ok(v) => builder.append_value(v),
+                        Err(e) if allow_decode_fail => {
+                            log::debug!("failed to convert int value to i128: {e}");
+                            builder.append_null();
+                        }
+                        Err(e) => {
+                            return Err(anyhow!("convert to i128: {e}"));
+                        }
+                    }
+                }
+                DynSolValue::Uint(v, nb) => {
+                    if num_bits != *nb {
+                        return Err(anyhow!("bit width mismatch: expected {num_bits}, got {nb}"));
+                    }
+
+                    match i128::try_from(*v) {
+                        Ok(v) => builder.append_value(v),
+                        Err(e) if allow_decode_fail => {
+                            log::debug!("failed to convert uint value to i128: {e}");
+                            builder.append_null();
+                        }
+                        Err(e) => {
+                            return Err(anyhow!("convert to i128: {e}"));
+                        }
+                    }
+                }
+                _ => {
+                    return Err(anyhow!(
+                        "found unexpected value. Expected: int/uint, Found: {val:?}"
+                    ));
+                }
+            },
+            None => {
+                builder.append_null();
+            }
+        }
+    }
+
+    builder = builder.with_data_type(DataType::Decimal128(38, 0));
+
+    Ok(Arc::new(builder.finish()))
+}
+
+fn to_decimal256(
+    num_bits: usize,
+    sol_values: &[Option<DynSolValue>],
+    allow_decode_fail: bool,
+) -> Result<Arc<dyn Array>> {
+    let mut builder = builder::Decimal256Builder::new();
+
+    for val in sol_values {
+        match val {
+            Some(val) => match val {
+                DynSolValue::Int(v, nb) => {
+                    if num_bits != *nb {
+                        return Err(anyhow!("bit width mismatch: expected {num_bits}, got {nb}"));
+                    }
+
+                    let v = arrow::datatypes::i256::from_be_bytes(v.to_be_bytes::<32>());
+
+                    builder.append_value(v);
+                }
+                DynSolValue::Uint(v, nb) => {
+                    if num_bits != *nb {
+                        return Err(anyhow!("bit width mismatch: expected {num_bits}, got {nb}"));
+                    }
+                    match I256::try_from(*v).context("try u256 to i256") {
+                        Ok(v) => builder.append_value(arrow::datatypes::i256::from_be_bytes(
+                            v.to_be_bytes::<32>(),
+                        )),
+                        Err(e) => {
+                            if allow_decode_fail {
+                                log::debug!("failed to decode u256: {e}");
+                                builder.append_null();
+                            } else {
+                                return Err(e);
+                            }
+                        }
+                    }
+                }
+                _ => {
+                    return Err(anyhow!(
+                        "found unexpected value. Expected: bool, Found: {val:?}"
+                    ));
+                }
+            },
+            None => {
+                builder.append_null();
+            }
+        }
+    }
+
+    builder = builder.with_data_type(DataType::Decimal256(76, 0));
+
+    Ok(Arc::new(builder.finish()))
+}
+
+pub(crate) fn to_int_impl<T>(
+    num_bits: usize,
+    sol_values: &[Option<DynSolValue>],
+    allow_decode_fail: bool,
+) -> Result<Arc<dyn Array>>
+where
+    T: ArrowPrimitiveType,
+    T::Native: TryFrom<I256> + TryFrom<U256>,
+{
+    let mut builder = builder::PrimitiveBuilder::<T>::new();
+
+    for val in sol_values {
+        match val {
+            Some(val) => match val {
+                DynSolValue::Int(v, nb) => {
+                    if num_bits != *nb {
+                        return Err(anyhow!("bit width mismatch: expected {num_bits}, got {nb}"));
+                    }
+                    match T::Native::try_from(*v) {
+                        Ok(native) => builder.append_value(native),
+                        Err(_) if allow_decode_fail => {
+                            log::debug!("failed to convert int value {v} to native type");
+                            builder.append_null();
+                        }
+                        Err(_) => {
+                            return Err(anyhow!("failed to convert int value to native type"));
+                        }
+                    }
+                }
+                DynSolValue::Uint(v, nb) => {
+                    if num_bits != *nb {
+                        return Err(anyhow!("bit width mismatch: expected {num_bits}, got {nb}"));
+                    }
+                    match T::Native::try_from(*v) {
+                        Ok(native) => builder.append_value(native),
+                        Err(_) if allow_decode_fail => {
+                            log::debug!("failed to convert uint value {v} to native type");
+                            builder.append_null();
+                        }
+                        Err(_) => {
+                            return Err(anyhow!("failed to convert uint value to native type"));
+                        }
+                    }
+                }
+                _ => {
+                    return Err(anyhow!(
+                        "found unexpected value. Expected: int/uint, Found: {val:?}"
+                    ));
+                }
+            },
+            None => {
+                builder.append_null();
+            }
+        }
+    }
+
+    Ok(Arc::new(builder.finish()))
+}
+
+fn to_list(
+    sol_type: &DynSolType,
+    sol_values: Vec<Option<DynSolValue>>,
+    allow_decode_fail: bool,
+) -> Result<Arc<dyn Array>> {
+    let mut lengths = Vec::with_capacity(sol_values.len());
+    let mut values = Vec::with_capacity(sol_values.len() * 2);
+    let mut validity = Vec::with_capacity(sol_values.len() * 2);
+
+    let mut all_valid = true;
+
+    for val in sol_values {
+        if let Some(val) = val {
+            match val {
+                DynSolValue::Array(inner_vals) | DynSolValue::FixedArray(inner_vals) => {
+                    lengths.push(inner_vals.len());
+                    values.extend(inner_vals.into_iter().map(Some));
+                    validity.push(true);
+                }
+                _ => {
+                    return Err(anyhow!(
+                        "found unexpected value. Expected list type, Found: {val:?}"
+                    ));
+                }
+            }
+        } else {
+            lengths.push(0);
+            validity.push(false);
+            all_valid = false;
+        }
+    }
+
+    let values = to_arrow(sol_type, values, allow_decode_fail).context("map inner")?;
+    let field = Field::new(
+        "",
+        to_arrow_dtype(sol_type).context("construct data type")?,
+        true,
+    );
+    let list_arr = ListArray::try_new(
+        Arc::new(field),
+        OffsetBuffer::from_lengths(lengths),
+        values,
+        if all_valid {
+            None
+        } else {
+            Some(NullBuffer::from(validity))
+        },
+    )
+    .context("construct list array")?;
+    Ok(Arc::new(list_arr))
+}
+
+fn to_struct(
+    fields: &[DynSolType],
+    sol_values: Vec<Option<DynSolValue>>,
+    allow_decode_fail: bool,
+) -> Result<Arc<dyn Array>> {
+    let mut values = vec![Vec::with_capacity(sol_values.len()); fields.len()];
+
+    // unpack top layer of sol_values into columnar format
+    // since we recurse by calling to_arrow later in the function, this will eventually map to
+    // primitive types.
+    for val in sol_values {
+        match val {
+            Some(val) => match val {
+                DynSolValue::Tuple(inner_vals) => {
+                    if values.len() != inner_vals.len() {
+                        let expected = values.len();
+                        let found = inner_vals.len();
+                        return Err(anyhow!(
+                            "found unexpected length tuple value. Expected: {expected}, Found: {found}"
+                        ));
+                    }
+                    for (v, inner) in values.iter_mut().zip(inner_vals) {
+                        v.push(Some(inner.clone()));
+                    }
+                }
+                _ => {
+                    return Err(anyhow!(
+                        "found unexpected value. Expected: tuple, Found: {val:?}"
+                    ));
+                }
+            },
+            None => {
+                for v in &mut values {
+                    v.push(None);
+                }
+            }
+        }
+    }
+
+    let mut arrays = Vec::with_capacity(fields.len());
+
+    for (sol_type, arr_vals) in fields.iter().zip(values.into_iter()) {
+        arrays.push(to_arrow(sol_type, arr_vals, allow_decode_fail)?);
+    }
+
+    let fields = arrays
+        .iter()
+        .enumerate()
+        .map(|(i, arr)| Field::new(format!("param{i}"), arr.data_type().clone(), true))
+        .collect::<Vec<_>>();
+    let schema = Arc::new(Schema::new(fields));
+
+    let batch = RecordBatch::try_new(schema, arrays).context("construct record batch")?;
+
+    Ok(Arc::new(StructArray::from(batch)))
+}
+
+fn to_bool(sol_values: &[Option<DynSolValue>]) -> Result<Arc<dyn Array>> {
+    let mut builder = builder::BooleanBuilder::new();
+
+    for val in sol_values {
+        match val {
+            Some(val) => match val {
+                DynSolValue::Bool(b) => {
+                    builder.append_value(*b);
+                }
+                _ => {
+                    return Err(anyhow!(
+                        "found unexpected value. Expected: bool, Found: {val:?}"
+                    ));
+                }
+            },
+            None => {
+                builder.append_null();
+            }
+        }
+    }
+
+    Ok(Arc::new(builder.finish()))
+}
+
+fn to_binary(sol_values: &[Option<DynSolValue>]) -> Result<Arc<dyn Array>> {
+    let mut builder = builder::BinaryBuilder::new();
+
+    for val in sol_values {
+        match val {
+            Some(val) => match val {
+                DynSolValue::Bytes(data) => {
+                    builder.append_value(data);
+                }
+                DynSolValue::FixedBytes(data, _) => {
+                    builder.append_value(data);
+                }
+                DynSolValue::Address(data) => {
+                    builder.append_value(data);
+                }
+                DynSolValue::Uint(v, _) => {
+                    builder.append_value(v.to_be_bytes::<32>());
+                }
+                DynSolValue::Int(v, _) => {
+                    builder.append_value(v.to_be_bytes::<32>());
+                }
+                _ => {
+                    return Err(anyhow!(
+                        "found unexpected value. Expected a binary type, Found: {val:?}"
+                    ));
+                }
+            },
+            None => {
+                builder.append_null();
+            }
+        }
+    }
+
+    Ok(Arc::new(builder.finish()))
+}
+
+fn to_string(sol_values: &[Option<DynSolValue>]) -> Result<Arc<dyn Array>> {
+    let mut builder = builder::StringBuilder::new();
+
+    for val in sol_values {
+        match val {
+            Some(val) => match val {
+                DynSolValue::String(s) => {
+                    builder.append_value(s);
+                }
+                _ => {
+                    return Err(anyhow!(
+                        "found unexpected value. Expected string, Found: {val:?}"
+                    ));
+                }
+            },
+            None => {
+                builder.append_null();
+            }
+        }
+    }
+
+    Ok(Arc::new(builder.finish()))
+}
+
+/// Decode topic column values from binary to Arrow arrays.
+pub(crate) fn decode_topic<I: OffsetSizeTrait>(
+    sol_type: &DynSolType,
+    col: &GenericBinaryArray<I>,
+    allow_decode_fail: bool,
+    arrays: &mut Vec<Arc<dyn Array>>,
+) -> Result<()> {
+    let mut decoded = Vec::<Option<DynSolValue>>::with_capacity(col.len());
+
+    for blob in col {
+        match blob {
+            Some(blob) => match sol_type.abi_decode(blob) {
+                Ok(data) => decoded.push(Some(data)),
+                Err(e) if allow_decode_fail => {
+                    log::debug!("failed to decode a topic: {e}");
+                    decoded.push(None);
+                }
+                Err(e) => {
+                    return Err(anyhow!("failed to decode a topic: {e}"));
+                }
+            },
+            None => decoded.push(None),
+        }
+    }
+
+    arrays.push(to_arrow(sol_type, decoded, allow_decode_fail).context("map topic to arrow")?);
+
+    Ok(())
+}
+
+/// Decode body (non-indexed data) column values from binary to Arrow arrays.
+pub(crate) fn decode_body<I: OffsetSizeTrait>(
+    body_sol_type: &DynSolType,
+    body_col: &GenericBinaryArray<I>,
+    allow_decode_fail: bool,
+    arrays: &mut Vec<Arc<dyn Array>>,
+) -> Result<()> {
+    let mut body_decoded = Vec::<Option<DynSolValue>>::with_capacity(body_col.len());
+
+    for blob in body_col {
+        match blob {
+            Some(blob) => match body_sol_type.abi_decode_sequence(blob) {
+                Ok(data) => body_decoded.push(Some(data)),
+                Err(e) if allow_decode_fail => {
+                    log::debug!("failed to decode body: {e}");
+                    body_decoded.push(None);
+                }
+                Err(e) => {
+                    return Err(anyhow!("failed to decode body: {e}"));
+                }
+            },
+            None => body_decoded.push(None),
+        }
+    }
+
+    let body_array =
+        to_arrow(body_sol_type, body_decoded, allow_decode_fail).context("map body to arrow")?;
+    let arr = body_array
+        .as_any()
+        .downcast_ref::<StructArray>()
+        .context("expected struct array from to_arrow")?;
+
+    for f in arr.columns() {
+        arrays.push(f.clone());
+    }
+
+    Ok(())
+}
+
+/// Build a boolean mask comparing a topic0 column against a selector.
+pub(crate) fn build_topic0_mask(
+    col: &dyn arrow::array::Array,
+    selector: &[u8],
+) -> Result<BooleanArray> {
+    use arrow::array::{BinaryArray, LargeBinaryArray};
+
+    if col.data_type() == &DataType::Binary {
+        let arr = col
+            .as_any()
+            .downcast_ref::<BinaryArray>()
+            .context("downcast topic0 to BinaryArray")?;
+        Ok(arr
+            .iter()
+            .map(|v| v.map(|b| b == selector))
+            .collect::<BooleanArray>())
+    } else if col.data_type() == &DataType::LargeBinary {
+        let arr = col
+            .as_any()
+            .downcast_ref::<LargeBinaryArray>()
+            .context("downcast topic0 to LargeBinaryArray")?;
+        Ok(arr
+            .iter()
+            .map(|v| v.map(|b| b == selector))
+            .collect::<BooleanArray>())
+    } else {
+        Err(anyhow!(
+            "unexpected data type for topic0 column: {:?}",
+            col.data_type()
+        ))
+    }
+}

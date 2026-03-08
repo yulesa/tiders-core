@@ -16,6 +16,8 @@ alloy-primitives = { workspace = true }
 ruint = { workspace = true }
 anyhow = { workspace = true }
 log = { workspace =  true }
+serde_json = { workspace = true }
+faster-hex = { workspace = true }
 
 [dev-dependencies]
 parquet = { workspace = true }
