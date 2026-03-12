@@ -1,7 +1,7 @@
 """Blockchain data ingestion module.
 
 Provides a streaming interface for ingesting blockchain data from multiple
-provider backends (SQD, HyperSync, Yellowstone gRPC, RPC). Supports both
+provider backends (SQD, HyperSync, RPC). Supports both
 EVM and SVM chain queries with configurable retry, rate limiting, and
 buffering options.
 """
@@ -21,13 +21,11 @@ class ProviderKind(str, Enum):
     Attributes:
         SQD: SQD Network (formerly Subsquid) data lake provider.
         HYPERSYNC: Envio HyperSync provider for EVM chains.
-        YELLOWSTONE_GRPC: Solana Yellowstone gRPC provider.
         RPC: Direct JSON-RPC node connection.
     """
 
     SQD = "sqd"
     HYPERSYNC = "hypersync"
-    YELLOWSTONE_GRPC = "yellowstone_grpc"
     RPC = "rpc"
 
 
