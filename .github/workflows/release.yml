@@ -18,35 +18,35 @@ jobs:
           export DEBIAN_FRONTEND=noninteractive
           sudo apt-get install -y capnproto libcapnp-dev
       - name: Publish tiders-evm-schema
-        run: cargo publish -p tiders-evm-schema
+        run: cargo publish -p tiders-evm-schema || true
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
       - name: Publish tiders-svm-schema
-        run: sleep 10 && cargo publish -p tiders-svm-schema
+        run: sleep 10 && cargo publish -p tiders-svm-schema || true
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
       - name: Publish tiders-cast
-        run: sleep 10 && cargo publish -p tiders-cast
+        run: sleep 10 && cargo publish -p tiders-cast || true
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
       - name: Publish tiders-query
-        run: sleep 10 && cargo publish -p tiders-query
+        run: sleep 10 && cargo publish -p tiders-query || true
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
       - name: Publish tiders-evm-decode
-        run: sleep 10 && cargo publish -p tiders-evm-decode
+        run: sleep 10 && cargo publish -p tiders-evm-decode || true
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
       - name: Publish tiders-svm-decode
-        run: sleep 10 && cargo publish -p tiders-svm-decode
+        run: sleep 10 && cargo publish -p tiders-svm-decode || true
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
       - name: Publish tiders-ingest
-        run: sleep 10 && cargo publish -p tiders-ingest
+        run: sleep 10 && cargo publish -p tiders-ingest || true
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
       - name: Publish tiders-core
-        run: sleep 10 && cargo publish -p tiders-core
+        run: sleep 10 && cargo publish -p tiders-core || true
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
