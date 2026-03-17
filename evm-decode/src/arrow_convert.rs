@@ -375,7 +375,10 @@ fn to_struct(
 ) -> Result<Arc<dyn Array>> {
     // Handle empty tuple (e.g. events where all params are indexed and body is empty)
     if fields.is_empty() {
-        return Ok(Arc::new(StructArray::new_empty_fields(sol_values.len(), None)));
+        return Ok(Arc::new(StructArray::new_empty_fields(
+            sol_values.len(),
+            None,
+        )));
     }
 
     let mut values = vec![Vec::with_capacity(sol_values.len()); fields.len()];
