@@ -65,9 +65,9 @@ jobs:
       - name: Install maturin and twine
         run: pip install maturin twine
       - name: Build wheel
-        run: cd python && maturin build --release
+        run: maturin build --release --manifest-path ./python/Cargo.toml
       - name: Publish to PyPI
-        run: twine upload python/target/wheels/*
+        run: twine upload target/wheels/*
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
