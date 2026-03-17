@@ -7,6 +7,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   publish-crates:
@@ -62,9 +63,12 @@ jobs:
         run: |
           export DEBIAN_FRONTEND=noninteractive
           sudo apt-get install -y capnproto libcapnp-dev
-      - name: Install maturin
-        run: pip install maturin
-      - name: Build and publish to PyPI
-        run: cd python && maturin publish
+      - name: Install maturin and twine
+        run: pip install maturin twine
+      - name: Build wheel
+        run: cd python && maturin build --release
+      - name: Publish to PyPI
+        run: twine upload python/target/wheels/*
         env:
-          MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
