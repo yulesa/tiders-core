@@ -133,7 +133,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
       - name: Install twine
-        run: pip install twine
+        run: pip install "twine>=6.1"
       - name: Publish to PyPI
         run: twine upload --skip-existing wheels-*/*
         env:
