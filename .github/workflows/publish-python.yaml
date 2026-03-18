@@ -31,15 +31,11 @@ jobs:
           architecture: ${{ matrix.python-architecture }}
       - name: Build wheels
         uses: PyO3/maturin-action@v1
-        env:
-          OPENSSL_STATIC: "1"
-          OPENSSL_NO_VENDOR: "0"
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --interpreter python${{ matrix.python-version }} --zig --manifest-path ./python/Cargo.toml
           manylinux: auto
-          before-script-linux: |
-            sudo apt-get install -y capnproto libcapnp-dev libssl-dev pkg-config
+          before-script-linux: sudo apt-get install -y capnproto libcapnp-dev
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
